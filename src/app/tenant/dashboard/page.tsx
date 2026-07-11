@@ -96,9 +96,7 @@ export default function TenantDashboardPage() {
       <header className="bg-white border-b border-gray-200 sticky top-0 z-30">
         <div className="flex items-center justify-between px-4 py-3">
           <Link href="/" className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center">
-              <span className="text-white font-bold text-sm">RF</span>
-            </div>
+            <img src="/logo.png" alt="RentFlow" className="w-8 h-8 rounded-lg object-contain" />
             <span className="font-bold text-sm text-gray-900">RentFlow Kenya</span>
           </Link>
           <div className="flex items-center gap-3">
