@@ -55,9 +55,7 @@ export default function RegisterPage() {
       <div className="w-full max-w-md">
         <div className="text-center mb-8">
           <Link href="/" className="inline-flex items-center gap-2 mb-6">
-            <div className="w-10 h-10 rounded-xl bg-primary flex items-center justify-center">
-              <span className="text-white font-bold">RF</span>
-            </div>
+            <img src="/logo.png" alt="RentFlow" className="w-10 h-10 rounded-xl object-contain" />
             <span className="text-xl font-bold text-gray-900">RentFlow Kenya</span>
           </Link>
           <h1 className="text-2xl font-bold text-gray-900">Create your account</h1>

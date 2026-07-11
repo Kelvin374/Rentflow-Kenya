@@ -17,9 +17,7 @@ export default function LandingPage() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16">
             <Link href="/" className="flex items-center gap-2">
-              <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center">
-                <span className="text-white font-bold text-sm">RF</span>
-              </div>
+              <img src="/logo.png" alt="RentFlow" className="w-8 h-8 rounded-lg object-contain" />
               <span className="font-bold text-gray-900">RentFlow Kenya</span>
             </Link>
 
@@ -233,7 +231,7 @@ export default function LandingPage() {
           <div className="grid md:grid-cols-4 gap-8">
             <div>
               <div className="flex items-center gap-2 mb-4">
-                <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center"><span className="text-white font-bold text-sm">RF</span></div>
+                <img src="/logo.png" alt="RentFlow" className="w-8 h-8 rounded-lg object-contain" />
                 <span className="font-bold text-white">RentFlow Kenya</span>
               </div>
               <p className="text-sm">Revolutionizing property management for the Kenyan market with seamless M-Pesa integration.</p>

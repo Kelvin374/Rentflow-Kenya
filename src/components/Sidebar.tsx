@@ -31,10 +31,8 @@ export function Sidebar({ role }: SidebarProps) {
   return (
     <aside className="fixed left-0 top-0 z-40 h-screen w-64 bg-white border-r border-gray-200 flex flex-col">
       <div className="p-5 border-b border-gray-100">
-        <Link href="/dashboard" className="flex items-center gap-2">
-          <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center">
-            <span className="text-white font-bold text-sm">RF</span>
-          </div>
+          <Link href="/dashboard" className="flex items-center gap-2">
+          <img src="/logo.png" alt="RentFlow" className="w-8 h-8 rounded-lg object-contain" />
           <div>
             <span className="font-bold text-gray-900">RentFlow</span>
             <span className="block text-[10px] text-gray-400 font-medium uppercase tracking-wide">Management Pro</span>
