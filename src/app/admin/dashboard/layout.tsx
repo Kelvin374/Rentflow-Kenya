@@ -4,9 +4,8 @@ import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth';
 import { Sidebar } from '@/components/Sidebar';
-import { ToastProvider } from '@/components/Toast';
 
-export default function DashboardLayout({ children }: { children: React.ReactNode }) {
+export default function AdminDashboardLayout({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, isLoading } = useAuth();
   const router = useRouter();
 
@@ -32,8 +31,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   return (
     <div className="min-h-screen bg-background flex">
       <Sidebar />
-      <main className="flex-grow flex flex-col overflow-x-hidden min-h-screen">
-        <ToastProvider>{children}</ToastProvider>
+      <main className="flex-1 flex flex-col overflow-hidden relative">
+        {children}
       </main>
     </div>
   );

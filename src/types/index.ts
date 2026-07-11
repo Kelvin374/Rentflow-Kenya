@@ -34,6 +34,7 @@ export interface Property {
   id: string;
   name: string;
   location: string;
+  type?: string;
   units: number;
   occupiedUnits: number;
   monthlyRevenue: number;

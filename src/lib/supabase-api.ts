@@ -14,9 +14,9 @@ export async function fetchProperties(): Promise<Property[]> {
       .filter((u) => u.status === 'occupied')
       .reduce((s, u) => s + Number(u.monthly_rent), 0);
     return {
-      id: p.id, name: p.name, location: p.location, units: totalUnits,
+      id: p.id, name: p.name, location: p.location, type: (p as any).type, units: totalUnits,
       occupiedUnits, monthlyRevenue, status: p.status as Property['status'],
-      landlordId: p.landlord_id, paymentInfo: p.payment_info as PaymentInfo | undefined,
+      image: (p as any).image, landlordId: p.landlord_id, paymentInfo: p.payment_info as PaymentInfo | undefined,
       createdAt: p.created_at,
     };
   });
@@ -32,9 +32,9 @@ export async function fetchPropertyById(id: string): Promise<Property | null> {
     .filter((u) => u.status === 'occupied')
     .reduce((s, u) => s + Number(u.monthly_rent), 0);
   return {
-    id: p.id, name: p.name, location: p.location, units: totalUnits,
+    id: p.id, name: p.name, location: p.location, type: (p as any).type, units: totalUnits,
     occupiedUnits, monthlyRevenue, status: p.status as Property['status'],
-    landlordId: p.landlord_id, paymentInfo: p.payment_info as PaymentInfo | undefined,
+    image: (p as any).image, landlordId: p.landlord_id, paymentInfo: p.payment_info as PaymentInfo | undefined,
     createdAt: p.created_at,
   };
 }
@@ -44,13 +44,13 @@ export async function fetchPropertiesSimple(): Promise<{ id: string; name: strin
 }
 
 export async function createProperty(data: {
-  name: string; location: string; description: string; units: number;
+  name: string; location: string; description: string; units: number; type?: string;
   landlord_id: string; payment_info: PaymentInfo;
 }): Promise<void> {
   properties.push({
     id: crypto.randomUUID(), name: data.name, location: data.location,
-    description: data.description, units: data.units, status: 'vacant',
-    landlord_id: data.landlord_id, payment_info: data.payment_info,
+    description: data.description, units: data.units, type: data.type || 'Apartments', status: 'vacant',
+    landlord_id: data.landlord_id, image: '', payment_info: data.payment_info,
     created_at: new Date().toISOString(),
   });
 }
@@ -286,7 +286,7 @@ export async function fetchPropertyDetailData(id: string) {
 
   return {
     property: {
-      id: prop.id, name: prop.name, location: prop.location,
+      id: prop.id, name: prop.name, location: prop.location, type: (prop as any).type,
       units: totalUnits, occupiedUnits, monthlyRevenue,
       status: prop.status as Property['status'], landlordId: prop.landlord_id,
       paymentInfo: prop.payment_info as PaymentInfo | undefined, createdAt: prop.created_at,

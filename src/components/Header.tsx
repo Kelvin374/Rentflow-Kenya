@@ -1,9 +1,8 @@
 'use client';
 
-import { Search, Bell, HelpCircle, ChevronDown } from 'lucide-react';
+import { useState } from 'react';
 import { useAuth } from '@/lib/auth';
 import { getInitials } from '@/lib/utils';
-import { useState } from 'react';
 
 interface HeaderProps {
   title: string;
@@ -15,51 +14,43 @@ export function Header({ title, subtitle }: HeaderProps) {
   const [showDropdown, setShowDropdown] = useState(false);
 
   return (
-    <header className="sticky top-0 z-30 bg-white border-b border-gray-200">
-      <div className="flex items-center justify-between px-6 py-3">
-        <div>
-          <h1 className="text-xl font-semibold text-gray-900">{title}</h1>
-          {subtitle && (
-            <div className="flex items-center gap-1 text-sm text-gray-500 mt-0.5">
-              <span>Portfolio</span>
-              <span className="text-gray-300">chevron_right</span>
-              <span>{subtitle}</span>
-            </div>
-          )}
+    <header className="bg-surface sticky top-0 z-40 w-full h-16 border-b border-outline-variant">
+      <div className="flex justify-between items-center w-full h-full px-6">
+        <div className="flex items-center gap-4">
+          <button className="md:hidden p-2 hover:bg-surface-container-high rounded-full">
+            <span className="material-symbols-outlined">menu</span>
+          </button>
+          <h2 className="text-[24px] leading-[32px] font-semibold text-primary font-bold">{title}</h2>
         </div>
 
-        <div className="flex items-center gap-3">
-          <div className="relative hidden sm:block">
-            <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+        <div className="flex-grow max-w-xl mx-8 hidden lg:block">
+          <div className="relative">
+            <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-outline">search</span>
             <input
               type="text"
-              placeholder="Search..."
-              className="w-56 pl-9 pr-3 py-2 text-sm bg-gray-50 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary"
+              placeholder="Search properties, tenants, or invoices..."
+              className="w-full bg-surface-container-low border-none rounded-xl py-2 pl-10 pr-4 focus:ring-2 focus:ring-primary/20 text-base transition-all"
             />
           </div>
+        </div>
 
-          <button className="relative p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors">
-            <Bell size={20} />
-            <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-danger rounded-full" />
+        <div className="flex items-center gap-4">
+          <button className="hover:bg-surface-container-high p-2 rounded-full transition-transform active:scale-95">
+            <span className="material-symbols-outlined text-on-surface-variant">notifications</span>
           </button>
-
-          <button className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors">
-            <HelpCircle size={20} />
+          <button className="hover:bg-surface-container-high p-2 rounded-full transition-transform active:scale-95">
+            <span className="material-symbols-outlined text-on-surface-variant">apps</span>
           </button>
-
+          <div className="h-8 w-px bg-outline-variant mx-2"></div>
           <div className="relative">
             <button
               onClick={() => setShowDropdown(!showDropdown)}
-              className="flex items-center gap-2 pl-2 pr-3 py-1.5 rounded-lg hover:bg-gray-50 transition-colors"
+              className="flex items-center gap-2 cursor-pointer hover:bg-surface-container-high p-1 pr-3 rounded-full transition-all"
             >
               <div className="w-8 h-8 rounded-full bg-primary/10 text-primary flex items-center justify-center text-sm font-semibold">
                 {user ? getInitials(user.name) : 'AU'}
               </div>
-              <div className="text-left hidden sm:block">
-                <p className="text-sm font-medium text-gray-700">{user?.name || 'Admin User'}</p>
-                <p className="text-xs text-gray-400">{user?.role ? user.role.charAt(0).toUpperCase() + user.role.slice(1) : 'Portfolio Owner'}</p>
-              </div>
-              <ChevronDown size={16} className="text-gray-400 hidden sm:block" />
+              <span className="hidden sm:inline font-semibold text-sm text-on-surface">{user?.name || 'Alex Kamau'}</span>
             </button>
           </div>
         </div>

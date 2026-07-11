@@ -3,10 +3,10 @@
 import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth';
-import { Sidebar } from '@/components/Sidebar';
+import { TenantSidebar } from '@/components/TenantSidebar';
 import { ToastProvider } from '@/components/Toast';
 
-export default function DashboardLayout({ children }: { children: React.ReactNode }) {
+export default function TenantDashboardLayout({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, isLoading } = useAuth();
   const router = useRouter();
 
@@ -30,11 +30,11 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   if (!isAuthenticated) return null;
 
   return (
-    <div className="min-h-screen bg-background flex">
-      <Sidebar />
-      <main className="flex-grow flex flex-col overflow-x-hidden min-h-screen">
+    <div className="min-h-screen bg-background flex overflow-hidden h-screen">
+      <TenantSidebar />
+      <div className="flex-1 flex flex-col min-w-0 relative h-full">
         <ToastProvider>{children}</ToastProvider>
-      </main>
+      </div>
     </div>
   );
 }
