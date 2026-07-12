@@ -132,7 +132,7 @@ export default function PaymentsPage() {
         </div>
       </div>
 
-      <PaymentModal isOpen={showPaymentModal} onClose={() => setShowPaymentModal(false)} mode={plan.autoReconcile ? 'auto' : 'manual'} />
+      <PaymentModal isOpen={showPaymentModal} onClose={() => setShowPaymentModal(false)} />
     </div>
   );
 }
