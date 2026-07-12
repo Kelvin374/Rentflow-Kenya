@@ -224,7 +224,7 @@ export default function AdminDashboardPage() {
 
       {/* Global Footer */}
       <footer className="bg-surface-container-highest border-t border-outline-variant px-6 py-2 flex justify-between items-center shrink-0">
-        <p className="text-xs text-on-surface-variant">© 2024 RentFlow Kenya. All rights reserved.</p>
+        <p className="text-xs text-on-surface-variant">© 2026 RentFlow Kenya. All rights reserved.</p>
         <div className="flex gap-8">
           <a className="text-xs text-on-surface-variant hover:text-primary transition-colors" href="#">Help Center</a>
           <a className="text-xs text-on-surface-variant hover:text-primary transition-colors" href="#">Terms of Service</a>

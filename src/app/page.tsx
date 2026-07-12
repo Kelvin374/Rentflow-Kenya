@@ -372,7 +372,7 @@ export default function LandingPage() {
         </div>
 
         <div className="max-w-[1280px] mx-auto px-6 py-6 border-t border-outline-variant/30 text-center">
-          <p className="text-xs font-medium text-on-surface-variant">© 2024 RentFlow Kenya. All rights reserved.</p>
+          <p className="text-xs font-medium text-on-surface-variant">© 2026 RentFlow Kenya. All rights reserved.</p>
         </div>
       </footer>
     </div>

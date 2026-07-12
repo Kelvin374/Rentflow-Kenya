@@ -548,7 +548,7 @@ export default function PropertiesPage() {
       <footer className="w-full py-4 px-8 bg-surface-bright border-t border-outline-variant mt-12">
         <div className="max-w-[1440px] mx-auto flex flex-col md:flex-row justify-between items-center gap-4">
           <span className="text-[12px] leading-[16px] font-semibold text-on-surface-variant">RentFlow</span>
-          <p className="text-[11px] leading-[14px] text-on-surface-variant">&copy; 2024 RentFlow Enterprise. All rights reserved.</p>
+          <p className="text-[11px] leading-[14px] text-on-surface-variant">&copy; 2026 RentFlow Enterprise. All rights reserved.</p>
           <div className="flex gap-6">
             <a className="text-[11px] leading-[14px] text-on-surface-variant hover:text-primary transition-colors underline" href="#">Privacy Policy</a>
             <a className="text-[11px] leading-[14px] text-on-surface-variant hover:text-primary transition-colors underline" href="#">Terms of Service</a>

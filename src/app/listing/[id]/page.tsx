@@ -369,7 +369,7 @@ export default function PropertyListingPage() {
                 <span className="material-symbols-outlined text-[20px]">mail</span>
               </a>
             </div>
-            <p className="text-xs text-on-surface-variant">© 2024 RentFlow Kenya. All rights reserved.</p>
+            <p className="text-xs text-on-surface-variant">© 2026 RentFlow Kenya. All rights reserved.</p>
           </div>
         </div>
       </footer>

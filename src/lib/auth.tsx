@@ -8,22 +8,22 @@ const DEMO_PROFILES: Record<string, User> = {
   'a0000000-0000-0000-0000-000000000001': {
     id: 'a0000000-0000-0000-0000-000000000001', name: 'Admin User',
     email: 'admin@rentflow.co.ke', phone: '+254712345678', role: 'landlord',
-    subscription: 'free', createdAt: '2024-01-01T00:00:00Z',
+    subscription: 'free', createdAt: '2026-01-01T00:00:00Z',
   },
   'a0000000-0000-0000-0000-000000000002': {
     id: 'a0000000-0000-0000-0000-000000000002', name: 'Premium Landlord',
     email: 'premium@rentflow.co.ke', phone: '+254712345679', role: 'landlord',
-    subscription: 'professional', createdAt: '2024-01-01T00:00:00Z',
+    subscription: 'professional', createdAt: '2026-01-01T00:00:00Z',
   },
   'a0000000-0000-0000-0000-000000000003': {
     id: 'a0000000-0000-0000-0000-000000000003', name: 'Kevin Juma',
     email: 'kevin@example.com', phone: '+254798765432', role: 'tenant',
-    subscription: 'free', createdAt: '2024-01-01T00:00:00Z',
+    subscription: 'free', createdAt: '2026-01-01T00:00:00Z',
   },
   'a0000000-0000-0000-0000-000000000004': {
     id: 'a0000000-0000-0000-0000-000000000004', name: 'Elizabeth Otieno',
     email: 'elizabeth.o@gmail.com', phone: '+254711111111', role: 'tenant',
-    subscription: 'free', createdAt: '2024-01-01T00:00:00Z',
+    subscription: 'free', createdAt: '2026-01-01T00:00:00Z',
   },
 };
 

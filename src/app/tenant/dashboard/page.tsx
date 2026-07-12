@@ -339,7 +339,7 @@ export default function TenantDashboardPage() {
           {/* Footer */}
           <div className="mt-auto pt-8 border-t border-outline-variant">
             <p className="text-[10px] text-on-surface-variant leading-relaxed">
-              © 2024 RentFlow Kenya. All rights reserved.<br />
+              © 2026 RentFlow Kenya. All rights reserved.<br />
               Premium Property Management Solutions.
             </p>
           </div>
