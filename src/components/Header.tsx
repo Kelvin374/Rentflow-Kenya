@@ -2,7 +2,9 @@
 
 import { useState } from 'react';
 import { useAuth } from '@/lib/auth';
-import { getInitials } from '@/lib/utils';
+import { useSidebar } from '@/components/SidebarContext';
+import { NotificationBell } from '@/components/NotificationBell';
+import { Avatar } from '@/components/Avatar';
 
 interface HeaderProps {
   title: string;
@@ -11,16 +13,17 @@ interface HeaderProps {
 
 export function Header({ title, subtitle }: HeaderProps) {
   const { user } = useAuth();
+  const { openMobile } = useSidebar();
   const [showDropdown, setShowDropdown] = useState(false);
 
   return (
     <header className="bg-surface sticky top-0 z-40 w-full h-16 border-b border-outline-variant">
-      <div className="flex justify-between items-center w-full h-full px-6">
+      <div className="flex justify-between items-center w-full h-full px-4 md:px-6">
         <div className="flex items-center gap-4">
-          <button className="md:hidden p-2 hover:bg-surface-container-high rounded-full">
+          <button onClick={openMobile} className="md:hidden p-2 hover:bg-surface-container-high rounded-full">
             <span className="material-symbols-outlined">menu</span>
           </button>
-          <h2 className="text-[24px] leading-[32px] font-semibold text-primary font-bold">{title}</h2>
+          <h2 className="text-[20px] md:text-[24px] leading-[32px] font-semibold text-primary font-bold">{title}</h2>
         </div>
 
         <div className="flex-grow max-w-xl mx-8 hidden lg:block">
@@ -34,23 +37,19 @@ export function Header({ title, subtitle }: HeaderProps) {
           </div>
         </div>
 
-        <div className="flex items-center gap-4">
-          <button className="hover:bg-surface-container-high p-2 rounded-full transition-transform active:scale-95">
-            <span className="material-symbols-outlined text-on-surface-variant">notifications</span>
-          </button>
-          <button className="hover:bg-surface-container-high p-2 rounded-full transition-transform active:scale-95">
+        <div className="flex items-center gap-2 md:gap-4">
+          <NotificationBell />
+          <button className="hover:bg-surface-container-high p-2 rounded-full transition-transform active:scale-95 hidden md:block">
             <span className="material-symbols-outlined text-on-surface-variant">apps</span>
           </button>
-          <div className="h-8 w-px bg-outline-variant mx-2"></div>
+          <div className="h-8 w-px bg-outline-variant mx-1 md:mx-2 hidden md:block"></div>
           <div className="relative">
             <button
               onClick={() => setShowDropdown(!showDropdown)}
               className="flex items-center gap-2 cursor-pointer hover:bg-surface-container-high p-1 pr-3 rounded-full transition-all"
             >
-              <div className="w-8 h-8 rounded-full bg-primary/10 text-primary flex items-center justify-center text-sm font-semibold">
-                {user ? getInitials(user.name) : 'AU'}
-              </div>
-              <span className="hidden sm:inline font-semibold text-sm text-on-surface">{user?.name || 'Alex Kamau'}</span>
+              <Avatar src={user?.avatar} name={user?.name || 'AU'} size="sm" />
+              <span className="hidden sm:inline font-semibold text-sm text-on-surface">{user?.name || ''}</span>
             </button>
           </div>
         </div>

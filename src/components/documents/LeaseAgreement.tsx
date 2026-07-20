@@ -23,7 +23,7 @@ export function LeaseAgreementDocument({ lease, tenant, property }: Props) {
 
       <section className="mb-6">
         <h2 className="text-base font-bold border-b border-gray-300 pb-1 mb-3">PARTIES</h2>
-        <p className="mb-1"><span className="font-semibold">Landlord:</span> RentFlow Properties Ltd, P.O. Box 12345-00100, Nairobi, Kenya</p>
+        <p className="mb-1"><span className="font-semibold">Landlord:</span> {property.paymentInfo?.bankAccountName || property.name}, {property.location}</p>
         <p><span className="font-semibold">Tenant:</span> {tenant.name}, ID No. {tenant.nationalId}, {tenant.phone}, {tenant.email}</p>
       </section>
 

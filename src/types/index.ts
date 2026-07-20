@@ -9,6 +9,9 @@ export interface User {
   role: UserRole;
   avatar?: string;
   subscription: SubscriptionTier;
+  isActive?: boolean;
+  latitude?: number;
+  longitude?: number;
   createdAt: string;
 }
 
@@ -34,13 +37,18 @@ export interface Property {
   id: string;
   name: string;
   location: string;
+  description?: string;
   type?: string;
   units: number;
   occupiedUnits: number;
   monthlyRevenue: number;
   status: 'occupied' | 'vacant' | 'maintenance';
   image?: string;
+  images?: string[];
   landlordId: string;
+  latitude?: number;
+  longitude?: number;
+  distance?: number;
   paymentInfo?: PaymentInfo;
   createdAt: string;
 }
@@ -61,6 +69,7 @@ export interface Tenant {
   email: string;
   phone: string;
   nationalId: string;
+  avatar?: string;
   unitId: string;
   propertyId: string;
   propertyName: string;
@@ -95,7 +104,7 @@ export interface MaintenanceRequest {
   category: 'plumbing' | 'electrical' | 'security' | 'painting' | 'water' | 'cleaning' | 'general';
   description: string;
   priority: 'low' | 'normal' | 'urgent';
-  status: 'submitted' | 'assigned' | 'in_progress' | 'completed';
+  status: 'submitted' | 'assigned' | 'in_progress' | 'completed' | 'cancelled';
   assignedTo?: string;
   images?: string[];
   createdAt: string;

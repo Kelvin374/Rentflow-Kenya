@@ -111,7 +111,7 @@ export function PaymentModal({ isOpen, onClose, amount = '45,000', onSuccess }: 
             </div>
             <h4 className="text-lg font-bold text-on-surface mb-2">Payment Successful!</h4>
             <p className="text-sm text-on-surface-variant mb-1">KES {amount} has been paid via M-Pesa</p>
-            <p className="text-xs text-on-surface-variant mb-6">Ref: {Math.random().toString(36).slice(2, 10).toUpperCase()}</p>
+            <p className="text-xs text-on-surface-variant mb-6">Transaction recorded successfully.</p>
             <button
               onClick={handleDone}
               className="w-full py-3 rounded-xl bg-[#1EB952] text-white font-semibold text-sm hover:opacity-95 transition-all"

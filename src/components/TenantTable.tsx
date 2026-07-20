@@ -3,7 +3,8 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { Search, ChevronLeft, ChevronRight, Eye, Edit, Trash2 } from 'lucide-react';
-import { formatCurrency, getInitials, getStatusColor, formatDate } from '@/lib/utils';
+import { formatCurrency, getStatusColor, formatDate } from '@/lib/utils';
+import { Avatar } from '@/components/Avatar';
 import type { Tenant } from '@/types';
 
 interface TenantTableProps {
@@ -70,9 +71,7 @@ export function TenantTable({ tenants, onDelete }: TenantTableProps) {
               <tr key={tenant.id} className="hover:bg-gray-50 transition-colors cursor-pointer" onClick={() => window.location.href = `/tenants/${tenant.id}`}>
                 <td className="px-5 py-3">
                   <div className="flex items-center gap-3">
-                    <div className="w-9 h-9 rounded-full bg-primary/10 text-primary flex items-center justify-center text-sm font-semibold flex-shrink-0">
-                      {getInitials(tenant.name)}
-                    </div>
+                    <Avatar src={tenant.avatar} name={tenant.name} size="md" />
                     <div>
                       <p className="text-sm font-medium text-gray-900">{tenant.name}</p>
                       <p className="text-xs text-gray-400">{tenant.email}</p>

@@ -17,7 +17,7 @@ export function PaymentReceiptDocument({ payment, tenant, property }: Props) {
       <div className="text-center border-b-2 border-gray-900 pb-4 mb-6">
         <h1 className="text-2xl font-bold">OFFICIAL RECEIPT</h1>
         <p className="text-lg font-semibold mt-1">RentFlow Kenya</p>
-        <p className="text-xs text-gray-500">P.O. Box 12345-00100, Nairobi, Kenya | M-Pesa Paybill: 247247</p>
+        <p className="text-xs text-gray-500">{property.location} | M-Pesa Paybill: {property.paymentInfo?.mpesaPaybill || 'N/A'}</p>
       </div>
 
       <div className="flex justify-between items-start mb-6">

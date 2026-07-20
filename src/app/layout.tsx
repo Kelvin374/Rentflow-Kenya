@@ -1,5 +1,5 @@
 import type { Metadata } from 'next';
-import { AuthProvider } from '@/lib/auth';
+import { Providers } from '@/components/Providers';
 import './globals.css';
 
 export const metadata: Metadata = {
@@ -18,7 +18,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet" />
       </head>
       <body className="min-h-full antialiased overflow-x-hidden" suppressHydrationWarning>
-        <AuthProvider>{children}</AuthProvider>
+        <Providers>{children}</Providers>
       </body>
     </html>
   );

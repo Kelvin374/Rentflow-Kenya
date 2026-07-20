@@ -76,12 +76,12 @@ export function OverdueNoticeDocument({ payment, tenant, property, daysOverdue, 
         <div className="grid grid-cols-2 gap-4 text-sm">
           <div className="border border-gray-200 rounded p-3">
             <p className="font-semibold">M-Pesa</p>
-            <p>Paybill: <strong>247247</strong></p>
+            <p>Paybill: <strong>{property.paymentInfo?.mpesaPaybill || 'N/A'}</strong></p>
             <p>Account: <strong>{tenant.nationalId}</strong></p>
           </div>
           <div className="border border-gray-200 rounded p-3">
             <p className="font-semibold">Bank Transfer</p>
-            <p>Equity Bank: <strong>1234567890</strong></p>
+            <p>{property.paymentInfo?.bankName || 'Bank'}: <strong>{property.paymentInfo?.bankAccount || 'N/A'}</strong></p>
             <p>Branch: Nairobi</p>
           </div>
         </div>
@@ -98,7 +98,7 @@ export function OverdueNoticeDocument({ payment, tenant, property, daysOverdue, 
       </section>
 
       <div className="border-t border-gray-300 pt-4 mt-4">
-        <p className="text-xs text-gray-500 mb-1">For queries, contact accounts@rentflow.co.ke or call +254 712 345 678.</p>
+        <p className="text-xs text-gray-500 mb-1">For queries, please contact your property manager.</p>
       </div>
 
       <p className="text-[10px] text-gray-400 text-center mt-6">

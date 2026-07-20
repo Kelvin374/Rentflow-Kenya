@@ -4,10 +4,9 @@ import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth';
 import { Sidebar } from '@/components/Sidebar';
-import { ToastProvider } from '@/components/Toast';
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
-  const { isAuthenticated, isLoading } = useAuth();
+  const { user, isAuthenticated, isLoading } = useAuth();
   const router = useRouter();
 
   useEffect(() => {
@@ -29,11 +28,21 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   if (!isAuthenticated) return null;
 
+  if (user && user.role === 'admin') {
+    router.push('/admin/dashboard');
+    return null;
+  }
+
+  if (user && user.role === 'tenant') {
+    router.push('/tenant/dashboard');
+    return null;
+  }
+
   return (
     <div className="min-h-screen bg-background flex">
       <Sidebar />
       <main className="flex-grow flex flex-col overflow-x-hidden min-h-screen">
-        <ToastProvider>{children}</ToastProvider>
+        {children}
       </main>
     </div>
   );

@@ -2,10 +2,10 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { useAuth } from '@/lib/auth';
+import { useAuth, getDashboardRoute } from '@/lib/auth';
 
 const DEMO_ACCOUNTS = [
-  { id: 'a0000000-0000-0000-0000-000000000001', label: 'Landlord (Free)', role: 'landlord' },
+  { id: 'a0000000-0000-0000-0000-000000000001', label: 'Admin — System Admin', role: 'admin' },
   { id: 'a0000000-0000-0000-0000-000000000002', label: 'Landlord (Professional)', role: 'landlord' },
   { id: 'a0000000-0000-0000-0000-000000000003', label: 'Tenant — Kevin Juma', role: 'tenant' },
   { id: 'a0000000-0000-0000-0000-000000000004', label: 'Tenant — Elizabeth Otieno', role: 'tenant' },
@@ -16,7 +16,7 @@ export default function LoginPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
-  const [role, setRole] = useState<'landlord' | 'tenant'>('landlord');
+  const [role, setRole] = useState<'admin' | 'landlord' | 'tenant'>('landlord');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
@@ -35,14 +35,14 @@ export default function LoginPage() {
     setError('');
     setLoading(true);
 
-    const { error: signInError } = await signIn(email, password);
+    const { error: signInError, role: actualRole } = await signIn(email, password);
     if (signInError) {
       setError(signInError);
       setLoading(false);
       return;
     }
 
-    router.push(role === 'landlord' ? '/dashboard' : '/tenant/dashboard');
+    router.push(getDashboardRoute(actualRole || 'landlord'));
   };
 
   const handleRegister = async (e: React.FormEvent) => {
@@ -61,7 +61,7 @@ export default function LoginPage() {
       return;
     }
 
-    router.push('/dashboard');
+    router.push(getDashboardRoute('landlord'));
   };
 
   const handleDemoLogin = async (profileId: string, demoRole: string) => {
@@ -73,7 +73,7 @@ export default function LoginPage() {
       setLoading(false);
       return;
     }
-    router.push(demoRole === 'landlord' ? '/dashboard' : '/tenant/dashboard');
+    router.push(getDashboardRoute(demoRole));
   };
 
   return (
@@ -133,6 +133,13 @@ export default function LoginPage() {
 
             {/* Demo Account Selector */}
             <div className="flex bg-surface-container rounded-lg p-1">
+              <button
+                type="button"
+                onClick={() => setRole('admin')}
+                className={`flex-1 py-2 text-sm font-medium rounded-md transition-all ${role === 'admin' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500'}`}
+              >
+                Admin
+              </button>
               <button
                 type="button"
                 onClick={() => setRole('landlord')}
@@ -242,7 +249,7 @@ export default function LoginPage() {
           </div>
 
           <div className="space-y-2 mb-4">
-            {DEMO_ACCOUNTS.filter((a) => (role === 'landlord' ? a.role === 'landlord' : a.role === 'tenant')).map((account) => (
+            {DEMO_ACCOUNTS.filter((a) => a.role === role).map((account) => (
               <button
                 key={account.id}
                 onClick={() => handleDemoLogin(account.id, account.role)}

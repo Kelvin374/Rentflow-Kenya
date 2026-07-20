@@ -1,16 +1,28 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { Header } from '@/components/Header';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { useAuth } from '@/lib/auth';
-import { Bell, Shield, User, Smartphone, LogOut } from 'lucide-react';
+import { RoleGuard } from '@/components/RoleGuard';
+import { uploadAvatar } from '@/lib/supabase-api';
+import { Avatar } from '@/components/Avatar';
+import { Bell, Shield, User, Smartphone, LogOut, Camera } from 'lucide-react';
 
 export default function SettingsPage() {
+  return (
+    <RoleGuard allowedRoles={['landlord', 'tenant']}>
+      <SettingsContent />
+    </RoleGuard>
+  );
+}
+
+function SettingsContent() {
   const { user, signOut, updateUser, isAuthenticated, isLoading } = useAuth();
   const router = useRouter();
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [profile, setProfile] = useState({
     name: '',
     email: '',
@@ -20,6 +32,7 @@ export default function SettingsPage() {
     email: true, sms: true, payment: true, maintenance: false,
   });
   const [saving, setSaving] = useState(false);
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
 
   useEffect(() => {
     if (isLoading) return;
@@ -38,6 +51,21 @@ export default function SettingsPage() {
     setSaving(false);
   };
 
+  const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !user) return;
+    if (file.size > 5 * 1024 * 1024) {
+      alert('Image must be under 5MB');
+      return;
+    }
+    setUploadingAvatar(true);
+    const { url, error } = await uploadAvatar(user.id, file);
+    if (url) await updateUser({ avatar: url });
+    if (error) alert(error);
+    setUploadingAvatar(false);
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  };
+
   if (isLoading) {
     return (
       <div className="p-6 flex items-center justify-center">
@@ -50,13 +78,36 @@ export default function SettingsPage() {
     <div>
       <Header title="Settings" subtitle="Manage your account and preferences" />
 
-      <div className="p-6 space-y-6 max-w-3xl">
+      <div className="p-6 space-y-6 max-w-3xl mx-auto">
         <Card>
           <CardHeader>
             <h3 className="font-semibold text-gray-900 flex items-center gap-2"><User size={18} /> Profile Information</h3>
           </CardHeader>
           <CardContent>
             <form onSubmit={handleSaveProfile} className="space-y-4">
+              <div className="flex items-center gap-4 mb-4">
+                <div className="relative group">
+                  <Avatar src={user?.avatar} name={user?.name || 'U'} size="lg" className="w-16 h-16 text-lg" />
+                  <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    className="absolute inset-0 rounded-full bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                  >
+                    <Camera size={20} className="text-white" />
+                  </button>
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-gray-900">{user?.name}</p>
+                  <p className="text-xs text-gray-400">{uploadingAvatar ? 'Uploading...' : 'Click photo to change'}</p>
+                </div>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp"
+                  className="hidden"
+                  onChange={handleAvatarUpload}
+                />
+              </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Full Name</label>
@@ -113,7 +164,7 @@ export default function SettingsPage() {
                 <Smartphone size={20} className="text-gray-400" />
                 <div>
                   <p className="text-sm font-medium text-gray-900">M-Pesa Integration</p>
-                  <p className="text-xs text-gray-400">Connected</p>
+                  <p className="text-xs text-gray-400">{user?.subscription === 'professional' || user?.subscription === 'enterprise' ? 'Connected' : 'Not configured'}</p>
                 </div>
               </div>
               <Button variant="outline" size="sm">Configure</Button>
@@ -125,7 +176,7 @@ export default function SettingsPage() {
               </div>
               <Button variant="outline" size="sm">Upgrade</Button>
             </div>
-            <button onClick={signOut}
+            <button onClick={() => { signOut(); router.push('/'); }}
               className="flex items-center gap-2 text-sm text-danger hover:text-danger-dark font-medium p-2 rounded-lg hover:bg-red-50 transition-colors">
               <LogOut size={16} /> Sign Out
             </button>

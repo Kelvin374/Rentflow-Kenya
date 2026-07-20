@@ -22,7 +22,7 @@ export function RentStatementDocument({ tenant, property, payments }: Props) {
       <div className="text-center border-b-2 border-gray-900 pb-4 mb-6">
         <h1 className="text-2xl font-bold">RENT STATEMENT</h1>
         <p className="text-lg font-semibold mt-1">RentFlow Kenya</p>
-        <p className="text-xs text-gray-500">P.O. Box 12345-00100, Nairobi, Kenya</p>
+        <p className="text-xs text-gray-500">{property.location}</p>
       </div>
 
       <div className="flex justify-between items-start mb-6">
@@ -110,7 +110,7 @@ export function RentStatementDocument({ tenant, property, payments }: Props) {
       <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 mb-6">
         <p className="text-xs text-amber-700">
           <strong>Note:</strong> This statement reflects all transactions recorded in the RentFlow system.
-          If you notice any discrepancies, please contact accounts@rentflow.co.ke or call +254 712 345 678.
+          If you notice any discrepancies, please contact your property manager.
         </p>
       </div>
 

@@ -3,10 +3,11 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth';
-import { fetchPropertiesSimple, createMaintenanceRequest } from '@/lib/supabase-api';
+import { fetchPropertiesSimple, createMaintenanceRequest, fetchUnitsByProperty } from '@/lib/supabase-api';
 import { ArrowLeft } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
+import { useToast } from '@/components/Toast';
 
 export default function NewMaintenancePage() {
   const router = useRouter();
@@ -18,6 +19,7 @@ export default function NewMaintenancePage() {
   });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+  const { showToast } = useToast();
 
   useEffect(() => {
     if (!isLoading && !isAuthenticated) router.push('/login');
@@ -29,7 +31,7 @@ export default function NewMaintenancePage() {
     setSaving(true);
     setError('');
 
-    const allUnits = await import('@/lib/seed-data').then((m) => m.units);
+    const allUnits = await fetchUnitsByProperty(form.propertyId);
     const foundUnit = allUnits.find(
       (u: any) => u.property_id === form.propertyId && u.unit_number === form.unitNumber
     );
@@ -45,6 +47,7 @@ export default function NewMaintenancePage() {
     });
 
     setSaving(false);
+    showToast('Maintenance request submitted!', 'success');
     router.push('/maintenance');
   };
 
@@ -60,7 +63,7 @@ export default function NewMaintenancePage() {
       <Card>
         <CardContent className="p-6">
           <form onSubmit={handleSubmit} className="space-y-5">
-            {error && <p className="text-sm text-danger bg-red-50 p-3 rounded-lg">{error}</p>}
+            {error && <p className="text-sm text-error bg-error-container/30 p-3 rounded-xl">{error}</p>}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Property</label>

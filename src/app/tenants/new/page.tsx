@@ -5,8 +5,9 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { ArrowLeft } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { fetchPropertiesSimple, createTenant } from '@/lib/supabase-api';
+import { fetchPropertiesSimple, createTenant, fetchUnitsByProperty } from '@/lib/supabase-api';
 import { useAuth } from '@/lib/auth';
+import { useToast } from '@/components/Toast';
 
 function NewTenantForm() {
   const router = useRouter();
@@ -14,18 +15,32 @@ function NewTenantForm() {
   const { user } = useAuth();
   const preselectedProperty = searchParams.get('propertyId') || '';
   const [properties, setProperties] = useState<any[]>([]);
+  const [vacantUnits, setVacantUnits] = useState<any[]>([]);
   const [form, setForm] = useState({
     name: '', email: '', phone: '2547', nationalId: '',
-    propertyId: preselectedProperty, unitNumber: '',
+    propertyId: preselectedProperty, unitId: '',
     rentAmount: '', leaseStart: '', leaseEnd: '',
     emergencyContact: '',
   });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+  const { showToast } = useToast();
 
   useEffect(() => {
     fetchPropertiesSimple().then(setProperties);
   }, []);
+
+  useEffect(() => {
+    if (form.propertyId) {
+      fetchUnitsByProperty(form.propertyId).then((allUnits) => {
+        const vacant = allUnits.filter((u: any) => u.status === 'vacant');
+        setVacantUnits(vacant);
+        setForm((prev) => ({ ...prev, unitId: '', rentAmount: '' }));
+      });
+    } else {
+      setVacantUnits([]);
+    }
+  }, [form.propertyId]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -34,6 +49,7 @@ function NewTenantForm() {
 
     const tenantId = crypto.randomUUID();
 
+    const selectedUnit = vacantUnits.find((u: any) => u.id === form.unitId);
     const { error } = await createTenant({
       id: tenantId,
       name: form.name,
@@ -41,16 +57,17 @@ function NewTenantForm() {
       phone: form.phone,
       nationalId: form.nationalId,
       propertyId: form.propertyId,
-      unitNumber: form.unitNumber,
+      unitNumber: selectedUnit?.unit_number || '',
       rentAmount: parseFloat(form.rentAmount),
       leaseStart: form.leaseStart,
       leaseEnd: form.leaseEnd,
       emergencyContact: form.emergencyContact,
     });
 
-    if (error) { setError(error); setSaving(false); return; }
+    if (error) { setError(error); setSaving(false); showToast(error, 'error'); return; }
 
     setSaving(false);
+    showToast('Tenant added successfully!', 'success');
     router.push('/tenants');
   };
 
@@ -66,7 +83,7 @@ function NewTenantForm() {
       <Card>
         <CardContent className="p-6">
           <form onSubmit={handleSubmit} className="space-y-5">
-            {error && <p className="text-sm text-danger bg-red-50 p-3 rounded-lg">{error}</p>}
+            {error && <p className="text-sm text-error bg-error-container/30 p-3 rounded-xl">{error}</p>}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Full Name</label>
@@ -99,10 +116,21 @@ function NewTenantForm() {
                 </select>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Unit Number</label>
-                <input type="text" value={form.unitNumber} onChange={(e) => setForm({ ...form, unitNumber: e.target.value })}
+                <label className="block text-sm font-medium text-gray-700 mb-1">Vacant Unit</label>
+                <select
+                  value={form.unitId}
+                  onChange={(e) => {
+                    const unit = vacantUnits.find((u: any) => u.id === e.target.value);
+                    setForm({ ...form, unitId: e.target.value, rentAmount: unit ? String(unit.monthly_rent) : '' });
+                  }}
                   className="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
-                  placeholder="e.g. A-204" required />
+                  required disabled={!form.propertyId}
+                >
+                  <option value="">{form.propertyId ? (vacantUnits.length ? 'Select unit' : 'No vacant units') : 'Select property first'}</option>
+                  {vacantUnits.map((u: any) => (
+                    <option key={u.id} value={u.id}>{u.unit_number} — {u.type} — KSh {Number(u.monthly_rent).toLocaleString()}/mo</option>
+                  ))}
+                </select>
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Monthly Rent (KSH)</label>

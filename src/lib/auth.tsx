@@ -2,39 +2,17 @@
 
 import { createContext, useContext, useState, useCallback, useEffect, type ReactNode } from 'react';
 import type { User } from '@/types';
-import { profiles as seedProfiles } from './seed-data';
-
-const DEMO_PROFILES: Record<string, User> = {
-  'a0000000-0000-0000-0000-000000000001': {
-    id: 'a0000000-0000-0000-0000-000000000001', name: 'Admin User',
-    email: 'admin@rentflow.co.ke', phone: '+254712345678', role: 'landlord',
-    subscription: 'free', createdAt: '2026-01-01T00:00:00Z',
-  },
-  'a0000000-0000-0000-0000-000000000002': {
-    id: 'a0000000-0000-0000-0000-000000000002', name: 'Premium Landlord',
-    email: 'premium@rentflow.co.ke', phone: '+254712345679', role: 'landlord',
-    subscription: 'professional', createdAt: '2026-01-01T00:00:00Z',
-  },
-  'a0000000-0000-0000-0000-000000000003': {
-    id: 'a0000000-0000-0000-0000-000000000003', name: 'Kevin Juma',
-    email: 'kevin@example.com', phone: '+254798765432', role: 'tenant',
-    subscription: 'free', createdAt: '2026-01-01T00:00:00Z',
-  },
-  'a0000000-0000-0000-0000-000000000004': {
-    id: 'a0000000-0000-0000-0000-000000000004', name: 'Elizabeth Otieno',
-    email: 'elizabeth.o@gmail.com', phone: '+254711111111', role: 'tenant',
-    subscription: 'free', createdAt: '2026-01-01T00:00:00Z',
-  },
-};
+import { supabase } from '@/lib/supabase/client';
 
 interface AuthContextType {
   user: User | null;
   isAuthenticated: boolean;
   isLoading: boolean;
-  signIn: (email: string, password: string) => Promise<{ error?: string }>;
+  signIn: (email: string, password: string) => Promise<{ error?: string; role?: string }>;
   signUp: (email: string, password: string, userData: Partial<User>) => Promise<{ error?: string }>;
   signOut: () => Promise<void>;
   updateUser: (updates: Partial<User>) => Promise<void>;
+  saveLocation: (latitude: number, longitude: number) => Promise<void>;
   loginAs: (profileId: string) => Promise<{ error?: string }>;
 }
 
@@ -46,23 +24,29 @@ const AuthContext = createContext<AuthContextType>({
   signUp: async () => ({}),
   signOut: async () => {},
   updateUser: async () => {},
+  saveLocation: async () => {},
   loginAs: async () => ({}),
 });
+
+function mapProfile(row: any): User {
+  return {
+    id: row.id,
+    name: row.name,
+    email: row.email,
+    phone: row.phone || '',
+    role: row.role,
+    avatar: row.avatar || '',
+    subscription: row.subscription,
+    isActive: row.is_active,
+    latitude: row.latitude ?? undefined,
+    longitude: row.longitude ?? undefined,
+    createdAt: row.created_at,
+  };
+}
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-
-  const fetchProfile = useCallback(async (userId: string, email: string): Promise<User | null> => {
-    const profile = seedProfiles.find((p) => p.id === userId);
-    if (!profile) return null;
-    return {
-      id: userId, name: profile.name, email: email,
-      phone: profile.phone || '', role: profile.role as User['role'],
-      avatar: profile.avatar || '', subscription: profile.subscription as User['subscription'],
-      createdAt: profile.created_at,
-    };
-  }, []);
 
   useEffect(() => {
     const stored = localStorage.getItem('rentflow_user');
@@ -80,61 +64,116 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, [user]);
 
-  const signIn = useCallback(async (_email: string, _password: string) => {
-    const profile = seedProfiles.find((p) => p.email === _email);
-    if (!profile) return { error: 'Invalid email or password' };
-    setUser({
-      id: profile.id, name: profile.name, email: profile.email || _email,
-      phone: profile.phone || '', role: profile.role as User['role'],
-      subscription: profile.subscription as User['subscription'],
-      createdAt: profile.created_at,
-    });
-    return {};
+  const signIn = useCallback(async (email: string, _password: string) => {
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('email', email)
+      .single();
+
+    if (error || !data) return { error: 'Invalid email or password' };
+
+    const profile = mapProfile(data);
+    setUser(profile);
+    return { role: profile.role };
   }, []);
 
-  const signUp = useCallback(async (_email: string, _password: string, userData: Partial<User>) => {
+  const signUp = useCallback(async (email: string, _password: string, userData: Partial<User>) => {
+    const { data: existing } = await supabase
+      .from('profiles')
+      .select('id')
+      .eq('email', email)
+      .single();
+
+    if (existing) return { error: 'An account with this email already exists' };
+
     const newId = crypto.randomUUID();
-    seedProfiles.push({
-      id: newId, name: userData.name || _email.split('@')[0],
-      email: _email, phone: userData.phone || '', role: userData.role || 'tenant',
-      national_id: '', avatar: '', subscription: 'free', emergency_contact: '',
-      is_verified: true, created_at: new Date().toISOString(),
+    const { error } = await supabase.from('profiles').insert({
+      id: newId,
+      name: userData.name || email.split('@')[0],
+      email,
+      phone: userData.phone || '',
+      role: userData.role || 'tenant',
+      national_id: '',
+      avatar: '',
+      subscription: 'free',
+      emergency_contact: '',
+      is_verified: true,
+      is_active: true,
+      created_at: new Date().toISOString(),
     });
+
+    if (error) return { error: error.message };
+
     setUser({
-      id: newId, name: userData.name || _email.split('@')[0],
-      email: _email, phone: userData.phone || '',
+      id: newId,
+      name: userData.name || email.split('@')[0],
+      email,
+      phone: userData.phone || '',
       role: (userData.role || 'tenant') as User['role'],
-      subscription: 'free', createdAt: new Date().toISOString(),
+      avatar: '',
+      subscription: 'free',
+      latitude: userData.latitude,
+      longitude: userData.longitude,
+      createdAt: new Date().toISOString(),
     });
     return {};
   }, []);
 
   const signOut = useCallback(async () => {
     setUser(null);
+    localStorage.removeItem('rentflow_user');
   }, []);
 
   const updateUser = useCallback(async (updates: Partial<User>) => {
     setUser((prev) => {
       if (!prev) return null;
       const updated = { ...prev, ...updates };
-      const profile = seedProfiles.find((p) => p.id === prev.id);
-      if (profile) {
-        if (updates.name) profile.name = updates.name;
-        if (updates.phone) profile.phone = updates.phone;
-      }
+
+      supabase
+        .from('profiles')
+        .update({
+          ...(updates.name && { name: updates.name }),
+          ...(updates.phone && { phone: updates.phone }),
+          ...(updates.avatar !== undefined && { avatar: updates.avatar }),
+          ...(updates.subscription && { subscription: updates.subscription }),
+        })
+        .eq('id', prev.id)
+        .then();
+
       return updated;
     });
   }, []);
 
   const loginAs = useCallback(async (profileId: string) => {
-    const profile = DEMO_PROFILES[profileId];
-    if (!profile) return { error: 'Profile not found' };
-    setUser(profile);
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('id', profileId)
+      .single();
+
+    if (error || !data) return { error: 'Profile not found' };
+
+    setUser(mapProfile(data));
     return {};
   }, []);
 
+  const saveLocation = useCallback(async (latitude: number, longitude: number) => {
+    setUser((prev) => {
+      if (!prev) return null;
+      const updated = { ...prev, latitude, longitude };
+      localStorage.setItem('rentflow_user', JSON.stringify(updated));
+      supabase
+        .from('profiles')
+        .update({ latitude, longitude })
+        .eq('id', prev.id)
+        .then();
+      return updated;
+    });
+  }, []);
+
   return (
-    <AuthContext.Provider value={{ user, isAuthenticated: !!user, isLoading, signIn, signUp, signOut, updateUser, loginAs }}>
+    <AuthContext.Provider value={{ user, isAuthenticated: !!user, isLoading, signIn, signUp, signOut, updateUser, saveLocation, loginAs }}>
       {children}
     </AuthContext.Provider>
   );
@@ -142,4 +181,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
 export function useAuth() {
   return useContext(AuthContext);
+}
+
+export function getDashboardRoute(role: string): string {
+  switch (role) {
+    case 'admin': return '/admin/dashboard';
+    case 'tenant': return '/tenant/dashboard';
+    default: return '/dashboard';
+  }
 }

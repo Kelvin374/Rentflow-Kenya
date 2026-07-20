@@ -1,72 +1,83 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { RevenueChart } from '@/components/charts/RevenueChart';
 import { OccupancyTrendChart } from '@/components/charts/OccupancyTrendChart';
 import { RevenueByProperty } from '@/components/charts/RevenueByProperty';
 import { OccupancyAreaChart } from '@/components/charts/OccupancyAreaChart';
 import { PaymentMethodChart } from '@/components/charts/PaymentMethodChart';
 import { GaugeCard } from '@/components/charts/GaugeCard';
-import { fetchPayments, fetchDashboardStats, fetchProperties } from '@/lib/supabase-api';
+import { ErrorMessage } from '@/components/ErrorMessage';
+import { fetchLandlordPayments, fetchLandlordStats, fetchLandlordProperties } from '@/lib/supabase-api';
+import { useAuth } from '@/lib/auth';
 import { formatCurrency } from '@/lib/utils';
+import { RoleGuard } from '@/components/RoleGuard';
 import type { DashboardStats, Payment, Property } from '@/types';
 
 const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 const currentMonth = new Date().getMonth();
 
-const generateRevenueData = (baseRevenue: number) => {
+const generateRevenueData = (paymentsList: Payment[]) => {
+  const monthRevenueMap = new Map<string, number>();
+  paymentsList.forEach((p) => {
+    if (p.status === 'paid' && p.date) {
+      const d = new Date(p.date);
+      const key = `${d.getFullYear()}-${d.getMonth()}`;
+      monthRevenueMap.set(key, (monthRevenueMap.get(key) || 0) + p.amount);
+    }
+  });
   return months.slice(0, 6).map((_, i) => {
     const monthIndex = (currentMonth - 5 + i + 12) % 12;
-    const factor = 0.7 + (i * 0.06) + Math.sin(i * 1.2) * 0.05;
+    const now = new Date();
+    const monthKey = `${now.getFullYear()}-${monthIndex}`;
     return {
       month: months[monthIndex],
-      actual: Math.round(baseRevenue * factor),
-      projected: Math.round(baseRevenue * (factor + 0.08)),
+      actual: monthRevenueMap.get(monthKey) || 0,
+      projected: 0,
     };
   });
 };
 
 const generateOccupancyTrend = (currentRate: number) => {
-  const base = Math.max(60, currentRate - 30);
   return months.slice(0, 6).map((_, i) => {
     const monthIndex = (currentMonth - 5 + i + 12) % 12;
-    const rate = Math.min(100, Math.round(base + (i * ((currentRate - base) / 5)) + Math.sin(i * 0.8) * 3));
-    return { month: months[monthIndex], rate };
+    const isCurrentOrPast = i === 5;
+    return { month: months[monthIndex], rate: isCurrentOrPast ? currentRate : 0 };
   });
 };
 
 const propertyColors = ['#2563eb', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4', '#f97316'];
 
-const occupancyAreaData = [
-  { area: 'Westlands', occupied: 47, vacant: 1, rate: 98 },
-  { area: 'Kilimani', occupied: 26, vacant: 6, rate: 82 },
-  { area: 'Karen', occupied: 8, vacant: 4, rate: 65 },
-  { area: 'Lavington', occupied: 30, vacant: 2, rate: 94 },
-  { area: 'Syokimau', occupied: 18, vacant: 25, rate: 42 },
-];
-
-const paymentMethods = [
-  { method: 'M-Pesa', amount: 2800000, count: 156, color: '#10b981' },
-  { method: 'Bank Transfer', amount: 980000, count: 43, color: '#2563eb' },
-  { method: 'Cash', amount: 320000, count: 28, color: '#f59e0b' },
-  { method: 'Cheque', amount: 100000, count: 5, color: '#8b5cf6' },
-];
-
 type Tab = 'overview' | 'revenue' | 'occupancy' | 'payments';
 
 export default function ReportsPage() {
+  return (
+    <RoleGuard allowedRoles={['landlord']}>
+      <ReportsContent />
+    </RoleGuard>
+  );
+}
+
+function ReportsContent() {
+  const { user } = useAuth();
   const [payments, setPayments] = useState<Payment[]>([]);
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [properties, setProperties] = useState<Property[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<Tab>('overview');
 
-  useEffect(() => {
-    Promise.all([fetchPayments(), fetchDashboardStats(), fetchProperties()])
+  const loadData = useCallback(() => {
+    setLoading(true);
+    setError(null);
+    const landlordId = user?.id || '';
+    Promise.all([fetchLandlordPayments(landlordId), fetchLandlordStats(landlordId), fetchLandlordProperties(landlordId)])
       .then(([p, s, props]) => { setPayments(p); setStats(s); setProperties(props); })
-      .catch(console.error)
+      .catch((e) => setError(e?.message || 'Failed to load reports data. Please try again.'))
       .finally(() => setLoading(false));
-  }, []);
+  }, [user?.id]);
+
+  useEffect(() => { loadData(); }, [loadData]);
 
   const s = stats || {
     totalProperties: 0, totalUnits: 0, occupiedUnits: 0, vacantUnits: 0,
@@ -76,17 +87,57 @@ export default function ReportsPage() {
 
   const totalCollected = payments.filter((p) => p.status === 'paid').reduce((sum, p) => sum + p.amount, 0);
   const totalOutstanding = payments.filter((p) => p.status !== 'paid').reduce((sum, p) => sum + p.amount, 0);
-  const collectionRate = s.monthlyRevenue > 0 ? Math.round(((s.monthlyRevenue - s.overdueAmount) / s.monthlyRevenue) * 100) : 95;
+  const collectionRate = s.monthlyRevenue > 0 ? Math.round(((s.monthlyRevenue - s.overdueAmount) / s.monthlyRevenue) * 100) : 0;
   const vacancyRate = s.totalUnits > 0 ? Math.round(((s.totalUnits - s.occupiedUnits) / s.totalUnits) * 100) : 0;
   const avgRevenuePerUnit = s.occupiedUnits > 0 ? Math.round(s.monthlyRevenue / s.occupiedUnits) : 0;
 
-  const revenueData = generateRevenueData(s.monthlyRevenue);
+  const revenueData = generateRevenueData(payments);
   const occupancyTrend = generateOccupancyTrend(s.occupancyRate);
   const revenueByPropertyData = properties.slice(0, 8).map((p, i) => ({
     name: p.name,
     revenue: p.monthlyRevenue,
     color: propertyColors[i % propertyColors.length],
   }));
+
+  const occupancyAreaData = (() => {
+    const areaMap = new Map<string, { occupied: number; vacant: number }>();
+    properties.forEach((p) => {
+      const area = p.location.split(',').map((s) => s.trim()).pop() || p.location;
+      const existing = areaMap.get(area) || { occupied: 0, vacant: 0 };
+      existing.occupied += p.occupiedUnits;
+      existing.vacant += Math.max(0, p.units - p.occupiedUnits);
+      areaMap.set(area, existing);
+    });
+    return Array.from(areaMap.entries())
+      .map(([area, data]) => ({
+        area,
+        occupied: data.occupied,
+        vacant: data.vacant,
+        rate: data.occupied + data.vacant > 0 ? Math.round((data.occupied / (data.occupied + data.vacant)) * 100) : 0,
+      }))
+      .sort((a, b) => b.occupied - a.occupied)
+      .slice(0, 8);
+  })();
+
+  const paymentMethods = (() => {
+    const methodMap = new Map<string, { amount: number; count: number }>();
+    const colors = ['#10b981', '#2563eb', '#f59e0b', '#8b5cf6', '#ef4444'];
+    payments.forEach((p) => {
+      const method = p.method || 'mpesa';
+      const existing = methodMap.get(method) || { amount: 0, count: 0 };
+      existing.amount += p.amount;
+      existing.count += 1;
+      methodMap.set(method, existing);
+    });
+    return Array.from(methodMap.entries())
+      .map(([method, data], i) => ({
+        method: method === 'mpesa' ? 'M-Pesa' : method.charAt(0).toUpperCase() + method.slice(1),
+        amount: data.amount,
+        count: data.count,
+        color: colors[i % colors.length],
+      }))
+      .sort((a, b) => b.amount - a.amount);
+  })();
 
   const tabs: { key: Tab; label: string; icon: string }[] = [
     { key: 'overview', label: 'Overview', icon: 'analytics' },
@@ -111,13 +162,15 @@ export default function ReportsPage() {
     );
   }
 
+  if (error) {
+    return <ErrorMessage message={error} onRetry={loadData} />;
+  }
+
   const revenueInMillions = (s.monthlyRevenue / 1000000).toFixed(1);
-  const prevRevenueInMillions = ((s.monthlyRevenue * 0.89) / 1000000).toFixed(2);
-  const revenueGrowth = ((s.monthlyRevenue - s.monthlyRevenue * 0.89) / (s.monthlyRevenue * 0.89) * 100).toFixed(1);
 
   return (
     <div>
-      <div className="max-w-[1440px] mx-auto p-8 space-y-8">
+      <div className="max-w-[1440px] mx-auto p-4 md:p-8 space-y-8">
         <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-6">
           <div>
             <h1 className="text-[32px] leading-[40px] tracking-[-0.01em] font-semibold text-on-surface">Financial Reports</h1>
@@ -135,14 +188,12 @@ export default function ReportsPage() {
           </div>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-4">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
           <div className="glass p-4 rounded-[18px] shadow-sm flex flex-col justify-between h-32 border-white/50">
             <span className="text-on-surface-variant text-[11px] leading-[14px] tracking-[0.03em] font-semibold uppercase">Total Collected</span>
             <div>
               <p className="text-[28px] leading-[36px] tracking-[-0.02em] font-bold">{formatCurrency(totalCollected)}</p>
-              <p className="text-success text-[12px] leading-[16px] font-medium flex items-center gap-1">
-                <span className="material-symbols-outlined text-[14px]">trending_up</span> +{revenueGrowth}%
-              </p>
+              <p className="text-on-surface-variant text-[12px] leading-[16px]">Total payments received</p>
             </div>
           </div>
           <div className="glass p-4 rounded-[18px] shadow-sm flex flex-col justify-between h-32 border-white/50">
@@ -156,7 +207,7 @@ export default function ReportsPage() {
             <span className="text-on-surface-variant text-[11px] leading-[14px] tracking-[0.03em] font-semibold uppercase">Monthly Revenue</span>
             <div>
               <p className="text-[28px] leading-[36px] tracking-[-0.02em] font-bold">KES {revenueInMillions}M</p>
-              <p className="text-on-surface-variant text-[12px] leading-[16px]">Vs {prevRevenueInMillions}M last month</p>
+              <p className="text-on-surface-variant text-[12px] leading-[16px]">Current month</p>
             </div>
           </div>
           <div className="glass p-4 rounded-[18px] shadow-sm flex flex-col justify-between h-32 border-white/50">
@@ -220,9 +271,7 @@ export default function ReportsPage() {
                   <span className="text-on-surface-variant text-[11px] leading-[14px] tracking-[0.03em] font-semibold uppercase">Total Collected</span>
                 </div>
                 <p className="text-[24px] leading-[32px] font-bold text-on-surface">{formatCurrency(totalCollected)}</p>
-                <p className="text-success text-[12px] leading-[16px] font-medium mt-1 flex items-center gap-1">
-                  <span className="material-symbols-outlined text-[14px]">trending_up</span> +{revenueGrowth}% vs last month
-                </p>
+                <p className="text-on-surface-variant text-[12px] leading-[16px] mt-1">Total payments received</p>
               </div>
               <div className="glass p-5 rounded-[18px] shadow-sm border-white/50">
                 <div className="flex items-center gap-2 mb-3">

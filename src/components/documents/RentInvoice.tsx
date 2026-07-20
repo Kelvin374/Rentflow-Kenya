@@ -21,8 +21,8 @@ export function RentInvoiceDocument({ payment, tenant, property, invoiceNumber }
         <div>
           <h1 className="text-2xl font-bold">RENT INVOICE</h1>
           <p className="text-lg font-semibold mt-1">RentFlow Kenya</p>
-          <p className="text-xs text-gray-500">P.O. Box 12345-00100, Nairobi, Kenya</p>
-          <p className="text-xs text-gray-500">info@rentflow.co.ke | +254 712 345 678</p>
+          <p className="text-xs text-gray-500">{property.location}</p>
+          <p className="text-xs text-gray-500">{property.paymentInfo?.bankAccountName || 'Rent Payment'}</p>
         </div>
         <div className="text-right">
           <p className="text-xs text-gray-500">Invoice No:</p>
@@ -76,19 +76,19 @@ export function RentInvoiceDocument({ payment, tenant, property, invoiceNumber }
       <div className="grid grid-cols-2 gap-4 text-sm mb-6">
         <div>
           <span className="text-gray-500">M-Pesa Paybill:</span>
-          <p className="font-semibold">247247</p>
+          <p className="font-semibold">{property.paymentInfo?.mpesaPaybill || 'N/A'}</p>
           <p className="text-xs text-gray-500">Account: {tenant.nationalId}</p>
         </div>
         <div>
           <span className="text-gray-500">Bank Account:</span>
-          <p className="font-semibold">Equity Bank — 1234567890</p>
+          <p className="font-semibold">{property.paymentInfo?.bankName || 'Bank'} — {property.paymentInfo?.bankAccount || 'N/A'}</p>
           <p className="text-xs text-gray-500">Branch: Nairobi, Kenya</p>
         </div>
       </div>
 
       <div className="border-t border-gray-300 pt-4 mt-4">
         <p className="text-xs text-gray-500 mb-1">Terms: Payment due within 5 days of invoice date.</p>
-        <p className="text-xs text-gray-500 mb-1">For queries, contact accounts@rentflow.co.ke or call +254 712 345 678.</p>
+        <p className="text-xs text-gray-500 mb-1">For queries, please contact your property manager.</p>
       </div>
 
       <p className="text-[10px] text-gray-400 text-center mt-6">

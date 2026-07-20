@@ -7,17 +7,23 @@ import { Building2, ArrowLeft, Edit3, Trash2, Plus, Users, Smartphone, Wallet } 
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { formatCurrency, formatDate } from '@/lib/utils';
-import { fetchPropertyDetailData } from '@/lib/supabase-api';
+import { fetchPropertyDetailData, deleteProperty } from '@/lib/supabase-api';
+import { useAuth } from '@/lib/auth';
+import { ConfirmDialog } from '@/components/ConfirmDialog';
 import type { Property, Tenant, Payment, PaymentInfo } from '@/types';
 
 export default function PropertyDetailPage() {
   const params = useParams();
   const router = useRouter();
+  const { user } = useAuth();
   const [property, setProperty] = useState<Property | null>(null);
   const [tenants, setTenants] = useState<any[]>([]);
   const [payments, setPayments] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [showMenu, setShowMenu] = useState(false);
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const isAdmin = user?.role === 'admin';
 
   useEffect(() => {
     fetchPropertyDetailData(params.id as string).then((result) => {
@@ -42,6 +48,18 @@ export default function PropertyDetailPage() {
     );
   }
 
+  const handleDeleteProperty = async () => {
+    setDeleting(true);
+    const { error } = await deleteProperty(property.id);
+    if (error) {
+      alert(error);
+      setDeleting(false);
+      setShowDeleteDialog(false);
+      return;
+    }
+    router.push('/properties');
+  };
+
   const collected = payments.filter((p) => p.status === 'paid').reduce((s: number, p: any) => s + Number(p.amount), 0);
   const outstanding = payments.filter((p) => p.status !== 'paid').reduce((s: number, p: any) => s + Number(p.amount), 0);
 
@@ -64,12 +82,14 @@ export default function PropertyDetailPage() {
             </button>
             {showMenu && (
               <div className="absolute right-0 mt-2 w-48 bg-white rounded-xl shadow-lg border border-gray-200 py-1 z-10">
-                <button onClick={() => { setShowMenu(false); }} className="w-full flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">
+                <button onClick={() => { setShowMenu(false); router.push(`/properties/${property.id}/edit`); }} className="w-full flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">
                   <Edit3 size={16} /> Edit Property
                 </button>
-                <button onClick={() => { setShowMenu(false); }} className="w-full flex items-center gap-2 px-4 py-2 text-sm text-danger hover:bg-red-50">
-                  <Trash2 size={16} /> Delete Property
-                </button>
+                {isAdmin && (
+                  <button onClick={() => { setShowMenu(false); setShowDeleteDialog(true); }} className="w-full flex items-center gap-2 px-4 py-2 text-sm text-danger hover:bg-red-50">
+                    <Trash2 size={16} /> Delete Property
+                  </button>
+                )}
               </div>
             )}
           </div>
@@ -77,6 +97,40 @@ export default function PropertyDetailPage() {
       </div>
 
       <div className="p-6 space-y-6">
+        {/* Image Gallery */}
+        {property.images && property.images.length > 0 ? (
+          <div className="rounded-xl overflow-hidden">
+            <div className="grid grid-cols-4 grid-rows-2 gap-2 h-[300px] md:h-[400px]">
+              {property.images.slice(0, 5).map((url, i) => (
+                <div
+                  key={i}
+                  className={`${
+                    i === 0 ? 'col-span-4 md:col-span-2 row-span-2' : 'hidden md:block col-span-1 row-span-1'
+                  } relative group cursor-pointer overflow-hidden rounded-lg`}
+                >
+                  <img
+                    src={url}
+                    alt={`${property.name} photo ${i + 1}`}
+                    className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+                  />
+                  <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors" />
+                </div>
+              ))}
+            </div>
+          </div>
+        ) : property.image ? (
+          <div className="rounded-xl overflow-hidden h-[300px]">
+            <img src={property.image} alt={property.name} className="w-full h-full object-cover" />
+          </div>
+        ) : (
+          <div className="bg-gray-100 rounded-xl h-[200px] flex items-center justify-center">
+            <div className="text-center">
+              <Building2 size={48} className="text-gray-300 mx-auto mb-2" />
+              <p className="text-sm text-gray-400">No photos uploaded</p>
+            </div>
+          </div>
+        )}
+
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           <Card><CardContent className="p-5">
             <p className="text-sm text-gray-500">Total Units</p>
@@ -202,6 +256,16 @@ export default function PropertyDetailPage() {
           </Card>
         </div>
       </div>
+
+      <ConfirmDialog
+        isOpen={showDeleteDialog}
+        title="Delete Property"
+        message={`Are you sure you want to delete "${property.name}"? This action cannot be undone.`}
+        warning={tenants.length > 0 ? `This property has ${tenants.length} active tenant(s). You must remove them first.` : undefined}
+        confirmLabel={deleting ? 'Deleting...' : 'Delete Property'}
+        onConfirm={handleDeleteProperty}
+        onCancel={() => setShowDeleteDialog(false)}
+      />
     </div>
   );
 }

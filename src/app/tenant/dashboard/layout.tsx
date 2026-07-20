@@ -4,10 +4,9 @@ import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth';
 import { TenantSidebar } from '@/components/TenantSidebar';
-import { ToastProvider } from '@/components/Toast';
 
 export default function TenantDashboardLayout({ children }: { children: React.ReactNode }) {
-  const { isAuthenticated, isLoading } = useAuth();
+  const { user, isAuthenticated, isLoading } = useAuth();
   const router = useRouter();
 
   useEffect(() => {
@@ -29,11 +28,16 @@ export default function TenantDashboardLayout({ children }: { children: React.Re
 
   if (!isAuthenticated) return null;
 
+  if (user && user.role !== 'tenant') {
+    router.push('/access-denied');
+    return null;
+  }
+
   return (
     <div className="min-h-screen bg-background flex overflow-hidden h-screen">
       <TenantSidebar />
       <div className="flex-1 flex flex-col min-w-0 relative h-full">
-        <ToastProvider>{children}</ToastProvider>
+        {children}
       </div>
     </div>
   );

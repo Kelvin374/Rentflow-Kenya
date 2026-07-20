@@ -1,65 +1,29 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { PropertyDrawer } from '@/components/PropertyDrawer';
-import { RevenueChart } from '@/components/charts/RevenueChart';
-import { OccupancyTrendChart } from '@/components/charts/OccupancyTrendChart';
-import { RevenueByProperty } from '@/components/charts/RevenueByProperty';
-import { OccupancyAreaChart } from '@/components/charts/OccupancyAreaChart';
-import { PaymentMethodChart } from '@/components/charts/PaymentMethodChart';
-import { GaugeCard } from '@/components/charts/GaugeCard';
-import { fetchProperties, fetchDashboardStats } from '@/lib/supabase-api';
+import { fetchProperties, fetchLandlordStats } from '@/lib/supabase-api';
 import { formatCurrency } from '@/lib/utils';
 import { useAuth } from '@/lib/auth';
+import { RoleGuard } from '@/components/RoleGuard';
+import { ErrorMessage } from '@/components/ErrorMessage';
 import type { Property, DashboardStats } from '@/types';
 
-const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-const currentMonth = new Date().getMonth();
-
-const generateRevenueData = (baseRevenue: number) => {
-  return months.slice(0, 6).map((month, i) => {
-    const monthIndex = (currentMonth - 5 + i + 12) % 12;
-    const factor = 0.7 + (i * 0.06) + Math.sin(i * 1.2) * 0.05;
-    return {
-      month: months[monthIndex],
-      actual: Math.round(baseRevenue * factor),
-      projected: Math.round(baseRevenue * (factor + 0.08)),
-    };
-  });
-};
-
-const generateOccupancyTrend = (currentRate: number) => {
-  const base = Math.max(60, currentRate - 30);
-  return months.slice(0, 6).map((month, i) => {
-    const monthIndex = (currentMonth - 5 + i + 12) % 12;
-    const rate = Math.min(100, Math.round(base + (i * ((currentRate - base) / 5)) + Math.sin(i * 0.8) * 3));
-    return { month: months[monthIndex], rate };
-  });
-};
-
-const propertyColors = ['#2563eb', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4', '#f97316'];
-
-const occupancyAreaData = [
-  { area: 'Westlands', occupied: 47, vacant: 1, rate: 98 },
-  { area: 'Kilimani', occupied: 26, vacant: 6, rate: 82 },
-  { area: 'Karen', occupied: 8, vacant: 4, rate: 65 },
-  { area: 'Lavington', occupied: 30, vacant: 2, rate: 94 },
-  { area: 'Syokimau', occupied: 18, vacant: 25, rate: 42 },
-];
-
-const paymentMethods = [
-  { method: 'M-Pesa', amount: 2800000, count: 156, color: '#10b981' },
-  { method: 'Bank Transfer', amount: 980000, count: 43, color: '#2563eb' },
-  { method: 'Cash', amount: 320000, count: 28, color: '#f59e0b' },
-  { method: 'Cheque', amount: 100000, count: 5, color: '#8b5cf6' },
-];
-
 export default function PropertiesPage() {
+  return (
+    <RoleGuard allowedRoles={['landlord']}>
+      <PropertiesContent />
+    </RoleGuard>
+  );
+}
+
+function PropertiesContent() {
   const { user } = useAuth();
   const [properties, setProperties] = useState<Property[]>([]);
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState('');
   const [cityFilter, setCityFilter] = useState('All');
   const [typeFilter, setTypeFilter] = useState('All');
@@ -67,15 +31,20 @@ export default function PropertiesPage() {
   const [viewMode, setViewMode] = useState<'grid' | 'list' | 'map'>('grid');
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [selectedProperty, setSelectedProperty] = useState<Property | null>(null);
-  const [analyticsTab, setAnalyticsTab] = useState<'overview' | 'revenue' | 'occupancy'>('overview');
   const isLandlord = user?.role === 'landlord';
 
-  useEffect(() => {
-    Promise.all([fetchProperties(), fetchDashboardStats()])
+  const loadData = useCallback(() => {
+    setLoading(true);
+    setError(null);
+    Promise.all([fetchProperties(isLandlord ? user?.id : undefined), isLandlord && user?.id ? fetchLandlordStats(user.id) : Promise.resolve(null)])
       .then(([p, s]) => { setProperties(p); setStats(s); })
-      .catch(console.error)
+      .catch((e) => setError(e?.message || 'Failed to load properties. Please try again.'))
       .finally(() => setLoading(false));
-  }, []);
+  }, [user?.id, isLandlord]);
+
+  useEffect(() => {
+    loadData();
+  }, [loadData]);
 
   const s = stats || { totalUnits: 0, occupiedUnits: 0, monthlyRevenue: 0, totalProperties: 0, occupancyRate: 0, totalTenants: 0, pendingPayments: 0, overdueAmount: 0, activeMaintenance: 0 } as DashboardStats;
 
@@ -117,38 +86,31 @@ export default function PropertiesPage() {
     return { label: 'Available', bgClass: 'bg-primary' };
   };
 
-  const revenueData = generateRevenueData(s.monthlyRevenue);
-  const occupancyTrend = generateOccupancyTrend(s.occupancyRate);
-
-  const revenueByPropertyData = properties.slice(0, 8).map((p, i) => ({
-    name: p.name,
-    revenue: p.monthlyRevenue,
-    color: propertyColors[i % propertyColors.length],
-  }));
-
-  const vacancyRate = s.totalUnits > 0 ? Math.round(((s.totalUnits - s.occupiedUnits) / s.totalUnits) * 100) : 0;
-  const collectionRate = s.monthlyRevenue > 0 ? Math.round(((s.monthlyRevenue - s.overdueAmount) / s.monthlyRevenue) * 100) : 95;
-  const avgRevenuePerUnit = s.occupiedUnits > 0 ? Math.round(s.monthlyRevenue / s.occupiedUnits) : 0;
-
   if (loading) {
     return (
       <div className="p-8">
         <div className="animate-pulse space-y-8">
           <div className="h-8 bg-gray-200 rounded w-64" />
-          <div className="grid grid-cols-6 gap-4">
-            {[1,2,3,4,5,6].map((i) => <div key={i} className="h-32 bg-gray-100 rounded-[18px]" />)}
+          <div className="grid grid-cols-4 gap-4">
+            {[1,2,3,4].map((i) => <div key={i} className="h-32 bg-gray-100 rounded-[18px]" />)}
           </div>
-          <div className="grid grid-cols-2 gap-6">
-            {[1,2].map((i) => <div key={i} className="h-80 bg-gray-100 rounded-[18px]" />)}
+          <div className="grid grid-cols-3 gap-6">
+            {[1,2,3].map((i) => <div key={i} className="h-80 bg-gray-100 rounded-[18px]" />)}
           </div>
         </div>
       </div>
     );
   }
 
+  if (error) {
+    return (
+      <div className="max-w-[1440px] mx-auto p-8">
+        <ErrorMessage message={error} onRetry={loadData} />
+      </div>
+    );
+  }
+
   const revenueInMillions = (s.monthlyRevenue / 1000000).toFixed(1);
-  const prevRevenueInMillions = ((s.monthlyRevenue * 0.89) / 1000000).toFixed(2);
-  const revenueGrowth = ((s.monthlyRevenue - s.monthlyRevenue * 0.89) / (s.monthlyRevenue * 0.89) * 100).toFixed(1);
 
   return (
     <div>
@@ -176,14 +138,11 @@ export default function PropertiesPage() {
           </div>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           <div className="glass p-4 rounded-[18px] shadow-sm flex flex-col justify-between h-32 border-white/50">
             <span className="text-on-surface-variant text-[11px] leading-[14px] tracking-[0.03em] font-semibold uppercase">Total Properties</span>
             <div>
               <p className="text-[32px] leading-[40px] tracking-[-0.02em] font-bold">{s.totalProperties}</p>
-              <p className="text-success text-[12px] leading-[16px] font-medium flex items-center gap-1">
-                <span className="material-symbols-outlined text-[14px]">trending_up</span> 1
-              </p>
             </div>
           </div>
           <div className="glass p-4 rounded-[18px] shadow-sm flex flex-col justify-between h-32 border-white/50">
@@ -194,143 +153,14 @@ export default function PropertiesPage() {
             <span className="text-on-surface-variant text-[11px] leading-[14px] tracking-[0.03em] font-semibold uppercase">Occupied Units</span>
             <p className="text-[32px] leading-[40px] tracking-[-0.02em] font-bold">{s.occupiedUnits}</p>
           </div>
-          <div className="glass p-4 rounded-[18px] shadow-sm flex flex-col justify-between h-32 border-white/50">
-            <span className="text-on-surface-variant text-[11px] leading-[14px] tracking-[0.03em] font-semibold uppercase">Occupancy Rate</span>
-            <div>
-              <p className="text-[32px] leading-[40px] tracking-[-0.02em] font-bold">{s.occupancyRate}%</p>
-              <div className="w-full h-1 bg-surface-container rounded-full mt-2 overflow-hidden">
-                <div className="bg-primary h-full" style={{ width: `${s.occupancyRate}%` }} />
-              </div>
-            </div>
-          </div>
-          <div className="glass p-4 rounded-[18px] shadow-sm flex flex-col justify-between h-32 border-white/50 col-span-1 lg:col-span-2">
-            <div className="flex justify-between items-start">
-              <span className="text-on-surface-variant text-[11px] leading-[14px] tracking-[0.03em] font-semibold uppercase">Monthly Revenue</span>
-              <span className="bg-success/10 text-success px-2 py-1 rounded-full text-[10px] font-bold">+{revenueGrowth}%</span>
-            </div>
+          <div className="glass p-4 rounded-[18px] shadow-sm flex flex-col justify-between h-32 border-white/50 col-span-1">
+            <span className="text-on-surface-variant text-[11px] leading-[14px] tracking-[0.03em] font-semibold uppercase">Monthly Revenue</span>
             <div>
               <p className="text-[32px] leading-[40px] tracking-[-0.02em] font-bold">KES {revenueInMillions}M</p>
-              <p className="text-on-surface-variant text-[12px] leading-[16px] font-medium">Vs KES {prevRevenueInMillions}M last month</p>
+              <p className="text-on-surface-variant text-[12px] leading-[16px] font-medium">Current month</p>
             </div>
           </div>
         </div>
-
-        <div className="flex gap-1 bg-surface-container-low p-1 rounded-xl w-fit">
-          {(['overview', 'revenue', 'occupancy'] as const).map((tab) => (
-            <button
-              key={tab}
-              onClick={() => setAnalyticsTab(tab)}
-              className={`px-5 py-2 rounded-lg text-[12px] leading-[16px] font-medium transition-all ${
-                analyticsTab === tab
-                  ? 'bg-white shadow-sm text-primary'
-                  : 'text-on-surface-variant hover:bg-white/50'
-              }`}
-            >
-              <span className="material-symbols-outlined text-[16px] mr-1 align-middle">
-                {tab === 'overview' ? 'analytics' : tab === 'revenue' ? 'payments' : 'apartment'}
-              </span>
-              {tab === 'overview' ? 'Overview' : tab === 'revenue' ? 'Revenue Analytics' : 'Occupancy Analytics'}
-            </button>
-          ))}
-        </div>
-
-        {analyticsTab === 'overview' && (
-          <>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-              <GaugeCard label="Collection Rate" value={collectionRate} color="#10b981" subtitle="Of rent collected on time" />
-              <GaugeCard label="Vacancy Rate" value={vacancyRate} color={vacancyRate > 20 ? '#ef4444' : '#f59e0b'} subtitle={`${s.totalUnits - s.occupiedUnits} unoccupied units`} />
-              <GaugeCard label="Avg Revenue/Unit" value={avgRevenuePerUnit} max={avgRevenuePerUnit * 2} suffix="" color="#2563eb" subtitle={`${formatCurrency(avgRevenuePerUnit)} per unit`} />
-              <GaugeCard label="Active Maintenance" value={s.activeMaintenance} max={Math.max(s.activeMaintenance * 2, 10)} suffix="" color="#8b5cf6" subtitle="Open maintenance requests" />
-            </div>
-
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              <RevenueChart data={revenueData} />
-              <RevenueByProperty data={revenueByPropertyData} />
-            </div>
-
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              <OccupancyAreaChart data={occupancyAreaData} />
-              <PaymentMethodChart data={paymentMethods} />
-            </div>
-          </>
-        )}
-
-        {analyticsTab === 'revenue' && (
-          <>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-              <div className="glass p-5 rounded-[18px] shadow-sm border-white/50">
-                <div className="flex items-center gap-2 mb-3">
-                  <span className="material-symbols-outlined text-primary text-[20px]">account_balance_wallet</span>
-                  <span className="text-on-surface-variant text-[11px] leading-[14px] tracking-[0.03em] font-semibold uppercase">Total Collected</span>
-                </div>
-                <p className="text-[24px] leading-[32px] font-bold text-on-surface">{formatCurrency(s.monthlyRevenue)}</p>
-                <p className="text-success text-[12px] leading-[16px] font-medium mt-1 flex items-center gap-1">
-                  <span className="material-symbols-outlined text-[14px]">trending_up</span> +{revenueGrowth}% vs last month
-                </p>
-              </div>
-              <div className="glass p-5 rounded-[18px] shadow-sm border-white/50">
-                <div className="flex items-center gap-2 mb-3">
-                  <span className="material-symbols-outlined text-danger text-[20px]">pending_actions</span>
-                  <span className="text-on-surface-variant text-[11px] leading-[14px] tracking-[0.03em] font-semibold uppercase">Pending</span>
-                </div>
-                <p className="text-[24px] leading-[32px] font-bold text-on-surface">{formatCurrency(s.overdueAmount)}</p>
-                <p className="text-on-surface-variant text-[12px] leading-[16px] mt-1">{s.pendingPayments} outstanding payments</p>
-              </div>
-              <div className="glass p-5 rounded-[18px] shadow-sm border-white/50">
-                <div className="flex items-center gap-2 mb-3">
-                  <span className="material-symbols-outlined text-success text-[20px]">savings</span>
-                  <span className="text-on-surface-variant text-[11px] leading-[14px] tracking-[0.03em] font-semibold uppercase">Annual Projection</span>
-                </div>
-                <p className="text-[24px] leading-[32px] font-bold text-on-surface">{formatCurrency(s.monthlyRevenue * 12)}</p>
-                <p className="text-success text-[12px] leading-[16px] font-medium mt-1 flex items-center gap-1">
-                  <span className="material-symbols-outlined text-[14px]">trending_up</span> Based on current rate
-                </p>
-              </div>
-            </div>
-
-            <RevenueChart data={revenueData} title="Revenue Trend (6 Months)" />
-
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              <RevenueByProperty data={revenueByPropertyData} title="Revenue Distribution by Property" />
-              <PaymentMethodChart data={paymentMethods} title="Payment Method Breakdown" />
-            </div>
-          </>
-        )}
-
-        {analyticsTab === 'occupancy' && (
-          <>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-              <div className="glass p-5 rounded-[18px] shadow-sm border-white/50">
-                <div className="flex items-center gap-2 mb-3">
-                  <span className="material-symbols-outlined text-primary text-[20px]">meeting_room</span>
-                  <span className="text-on-surface-variant text-[11px] leading-[14px] tracking-[0.03em] font-semibold uppercase">Total Units</span>
-                </div>
-                <p className="text-[24px] leading-[32px] font-bold text-on-surface">{s.totalUnits}</p>
-                <p className="text-on-surface-variant text-[12px] leading-[16px] mt-1">Across {s.totalProperties} properties</p>
-              </div>
-              <div className="glass p-5 rounded-[18px] shadow-sm border-white/50">
-                <div className="flex items-center gap-2 mb-3">
-                  <span className="material-symbols-outlined text-success text-[20px]">check_circle</span>
-                  <span className="text-on-surface-variant text-[11px] leading-[14px] tracking-[0.03em] font-semibold uppercase">Occupied</span>
-                </div>
-                <p className="text-[24px] leading-[32px] font-bold text-success">{s.occupiedUnits}</p>
-                <p className="text-success text-[12px] leading-[16px] font-medium mt-1">{s.occupancyRate}% occupancy rate</p>
-              </div>
-              <div className="glass p-5 rounded-[18px] shadow-sm border-white/50">
-                <div className="flex items-center gap-2 mb-3">
-                  <span className="material-symbols-outlined text-warning text-[20px]">holiday_village</span>
-                  <span className="text-on-surface-variant text-[11px] leading-[14px] tracking-[0.03em] font-semibold uppercase">Vacant</span>
-                </div>
-                <p className="text-[24px] leading-[32px] font-bold text-warning">{s.totalUnits - s.occupiedUnits}</p>
-                <p className="text-on-surface-variant text-[12px] leading-[16px] mt-1">{vacancyRate}% vacancy rate</p>
-              </div>
-            </div>
-
-            <OccupancyTrendChart data={occupancyTrend} title="Occupancy Rate Trend" />
-
-            <OccupancyAreaChart data={occupancyAreaData} title="Occupancy by Area" />
-          </>
-        )}
 
         <div className="bg-white p-4 rounded-[18px] border border-slate-200 flex flex-wrap gap-4 items-center shadow-sm">
           <div className="flex-1 min-w-[200px] relative">
@@ -425,8 +255,8 @@ export default function PropertiesPage() {
                   onClick={() => openDrawer(property)}
                 >
                   <div className="h-56 relative overflow-hidden">
-                    {property.image ? (
-                      <img src={property.image} alt={property.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700" />
+                    {property.images?.[0] || property.image ? (
+                      <img src={property.images?.[0] || property.image} alt={property.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700" />
                     ) : (
                       <div className="w-full h-full bg-surface-container flex items-center justify-center">
                         <span className="material-symbols-outlined text-4xl text-on-surface-variant">apartment</span>
@@ -492,46 +322,50 @@ export default function PropertiesPage() {
 
         {viewMode === 'list' && (
           <div className="bg-white rounded-[18px] border border-slate-200 shadow-sm overflow-hidden">
-            <div className="grid grid-cols-[1fr_120px_120px_100px_100px_80px] gap-4 p-4 border-b border-slate-100 text-[11px] leading-[14px] tracking-[0.03em] font-semibold text-on-surface-variant uppercase">
-              <span>Property</span>
-              <span>Units</span>
-              <span>Revenue</span>
-              <span>Occupancy</span>
-              <span>Status</span>
-              <span></span>
-            </div>
-            {filteredProperties.map((property) => {
-              const occupancyRate = Math.round((property.occupiedUnits / property.units) * 100);
-              const status = getPropertyStatus(property);
-              return (
-                <div
-                  key={property.id}
-                  className="grid grid-cols-[1fr_120px_120px_100px_100px_80px] gap-4 p-4 border-b border-slate-50 hover:bg-slate-50 transition-colors cursor-pointer items-center"
-                  onClick={() => openDrawer(property)}
-                >
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-lg bg-surface-container flex items-center justify-center overflow-hidden">
-                      {property.image ? (
-                        <img src={property.image} alt={property.name} className="w-full h-full object-cover" />
-                      ) : (
-                        <span className="material-symbols-outlined text-on-surface-variant">apartment</span>
-                      )}
-                    </div>
-                    <div>
-                      <p className="text-[14px] leading-[20px] font-semibold text-on-surface">{property.name}</p>
-                      <p className="text-[12px] leading-[16px] text-on-surface-variant">{property.location}</p>
-                    </div>
-                  </div>
-                  <span className="text-[14px] leading-[20px]">{property.units}</span>
-                  <span className="text-[14px] leading-[20px] font-semibold text-primary">{formatCurrency(property.monthlyRevenue)}</span>
-                  <span className="text-[14px] leading-[20px] font-semibold">{occupancyRate}%</span>
-                  <span className={`${status.bgClass} text-white text-[10px] font-bold px-2 py-1 rounded-full text-center`}>{status.label}</span>
-                  <Link href={`/properties/${property.id}`} onClick={(e) => e.stopPropagation()} className="p-2 hover:bg-surface-container rounded-lg transition-colors">
-                    <span className="material-symbols-outlined text-on-surface-variant">open_in_new</span>
-                  </Link>
+            <div className="overflow-x-auto">
+              <div className="min-w-[620px]">
+                <div className="grid grid-cols-[1fr_120px_120px_100px_100px_80px] gap-4 p-4 border-b border-slate-100 text-[11px] leading-[14px] tracking-[0.03em] font-semibold text-on-surface-variant uppercase">
+                  <span>Property</span>
+                  <span>Units</span>
+                  <span>Revenue</span>
+                  <span>Occupancy</span>
+                  <span>Status</span>
+                  <span></span>
                 </div>
-              );
-            })}
+                {filteredProperties.map((property) => {
+                  const occupancyRate = Math.round((property.occupiedUnits / property.units) * 100);
+                  const status = getPropertyStatus(property);
+                  return (
+                    <div
+                      key={property.id}
+                      className="grid grid-cols-[1fr_120px_120px_100px_100px_80px] gap-4 p-4 border-b border-slate-50 hover:bg-slate-50 transition-colors cursor-pointer items-center"
+                      onClick={() => openDrawer(property)}
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-lg bg-surface-container flex items-center justify-center overflow-hidden">
+                          {property.images?.[0] || property.image ? (
+                            <img src={property.images?.[0] || property.image} alt={property.name} className="w-full h-full object-cover" />
+                          ) : (
+                            <span className="material-symbols-outlined text-on-surface-variant">apartment</span>
+                          )}
+                        </div>
+                        <div>
+                          <p className="text-[14px] leading-[20px] font-semibold text-on-surface">{property.name}</p>
+                          <p className="text-[12px] leading-[16px] text-on-surface-variant">{property.location}</p>
+                        </div>
+                      </div>
+                      <span className="text-[14px] leading-[20px]">{property.units}</span>
+                      <span className="text-[14px] leading-[20px] font-semibold text-primary">{formatCurrency(property.monthlyRevenue)}</span>
+                      <span className="text-[14px] leading-[20px] font-semibold">{occupancyRate}%</span>
+                      <span className={`${status.bgClass} text-white text-[10px] font-bold px-2 py-1 rounded-full text-center`}>{status.label}</span>
+                      <Link href={`/properties/${property.id}`} onClick={(e) => e.stopPropagation()} className="p-2 hover:bg-surface-container rounded-lg transition-colors">
+                        <span className="material-symbols-outlined text-on-surface-variant">open_in_new</span>
+                      </Link>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
           </div>
         )}
 

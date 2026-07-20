@@ -3,10 +3,10 @@
 import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth';
-import { Sidebar } from '@/components/Sidebar';
+import { AdminSidebar } from '@/components/AdminSidebar';
 
 export default function AdminDashboardLayout({ children }: { children: React.ReactNode }) {
-  const { isAuthenticated, isLoading } = useAuth();
+  const { user, isAuthenticated, isLoading } = useAuth();
   const router = useRouter();
 
   useEffect(() => {
@@ -28,9 +28,14 @@ export default function AdminDashboardLayout({ children }: { children: React.Rea
 
   if (!isAuthenticated) return null;
 
+  if (user && user.role !== 'admin') {
+    router.push('/access-denied');
+    return null;
+  }
+
   return (
     <div className="min-h-screen bg-background flex">
-      <Sidebar />
+      <AdminSidebar />
       <main className="flex-1 flex flex-col overflow-hidden relative">
         {children}
       </main>

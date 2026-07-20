@@ -3,20 +3,26 @@
 import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { ArrowLeft, Mail, Phone, Calendar, FileText, CreditCard, Wrench } from 'lucide-react';
+import { ArrowLeft, Mail, Phone, Calendar, FileText, CreditCard, Wrench, Trash2, UserX } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { formatCurrency, formatDate, getStatusColor } from '@/lib/utils';
-import { fetchTenantById } from '@/lib/supabase-api';
+import { fetchTenantById, deactivateTenant } from '@/lib/supabase-api';
+import { useAuth } from '@/lib/auth';
+import { ConfirmDialog } from '@/components/ConfirmDialog';
 
 export default function TenantDetailPage() {
   const params = useParams();
   const router = useRouter();
+  const { user } = useAuth();
   const [tenant, setTenant] = useState<any>(null);
   const [payments, setPayments] = useState<any[]>([]);
   const [maintenance, setMaintenance] = useState<any[]>([]);
   const [lease, setLease] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [showDeactivateDialog, setShowDeactivateDialog] = useState(false);
+  const [deactivating, setDeactivating] = useState(false);
+  const isAdmin = user?.role === 'admin';
 
   useEffect(() => {
     fetchTenantById(params.id as string).then((result) => {
@@ -41,6 +47,18 @@ export default function TenantDetailPage() {
       </div>
     );
   }
+
+  const handleDeactivate = async () => {
+    setDeactivating(true);
+    const { error } = await deactivateTenant(tenant.id);
+    if (error) {
+      alert(error);
+      setDeactivating(false);
+      setShowDeactivateDialog(false);
+      return;
+    }
+    router.push('/tenants');
+  };
 
   const totalPaid = payments.filter((p) => p.status === 'paid').reduce((s: number, p: any) => s + Number(p.amount), 0);
 
@@ -67,6 +85,11 @@ export default function TenantDetailPage() {
             <a href={`mailto:${tenant.email}`}>
               <Button variant="outline" size="sm"><Mail size={14} /> Email</Button>
             </a>
+            {isAdmin && (
+              <Button variant="danger" size="sm" onClick={() => setShowDeactivateDialog(true)}>
+                <UserX size={14} /> Deactivate
+              </Button>
+            )}
           </div>
         </div>
       </div>
@@ -185,6 +208,16 @@ export default function TenantDetailPage() {
           </Card>
         )}
       </div>
+
+      <ConfirmDialog
+        isOpen={showDeactivateDialog}
+        title="Deactivate Tenant"
+        message={`Are you sure you want to deactivate "${tenant.name}"? This tenant will be removed from the active tenant list and their unit will be marked as vacant.`}
+        warning="The tenant's payment history will be preserved, but they will no longer appear in your active tenants."
+        confirmLabel={deactivating ? 'Deactivating...' : 'Deactivate Tenant'}
+        onConfirm={handleDeactivate}
+        onCancel={() => setShowDeactivateDialog(false)}
+      />
     </div>
   );
 }
