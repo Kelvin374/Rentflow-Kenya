@@ -31,6 +31,8 @@ export interface PaymentInfo {
   bankName: string;
   bankAccountName: string;
   bankAccount: string;
+  rentAmount: number;
+  depositAmount: number;
 }
 
 export interface Property {

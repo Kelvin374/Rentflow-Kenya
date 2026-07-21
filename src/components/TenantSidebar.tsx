@@ -8,7 +8,7 @@ import { useSidebar } from '@/components/SidebarContext';
 
 const navItems = [
   { href: '/tenant/dashboard', label: 'Dashboard', icon: 'dashboard' },
-  { href: '/listing/1', label: 'Properties', icon: 'domain' },
+  { href: '/tenant/properties', label: 'Properties', icon: 'domain' },
   { href: '/tenant/payments', label: 'Payments', icon: 'payments' },
   { href: '/tenant/maintenance', label: 'Maintenance', icon: 'build' },
 ];

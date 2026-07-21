@@ -13,7 +13,7 @@ import { Bell, Shield, User, Smartphone, LogOut, Camera } from 'lucide-react';
 
 export default function SettingsPage() {
   return (
-    <RoleGuard allowedRoles={['landlord', 'tenant']}>
+    <RoleGuard allowedRoles={['landlord', 'tenant', 'admin']}>
       <SettingsContent />
     </RoleGuard>
   );

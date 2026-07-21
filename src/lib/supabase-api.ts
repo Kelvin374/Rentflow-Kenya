@@ -4,7 +4,20 @@ import { haversineDistance, geocodeLocation, type GeoPoint } from '@/lib/utils';
 
 // ─── Helpers ────────────────────────────────────────────
 const PROP_COLS = 'id, name, location, description, units, type, status, landlord_id, image, images, payment_info, created_at';
+const PROP_COLS_WITH_COORDS = 'id, name, location, description, units, type, status, landlord_id, image, images, payment_info, latitude, longitude, created_at';
 const PROP_COLS_SAFE = 'id, name, location, description, units, type, status, landlord_id, image, payment_info, created_at';
+
+let _hasCoords = true;
+
+async function queryProperties(selectCols: string): Promise<{ data: any[] | null; error: any; hasCoords: boolean }> {
+  const { data, error } = await supabase.from('properties').select(selectCols);
+  if (error && selectCols === PROP_COLS_WITH_COORDS) {
+    _hasCoords = false;
+    const fallback = await supabase.from('properties').select(PROP_COLS);
+    return { data: fallback.data, error: fallback.error, hasCoords: false };
+  }
+  return { data, error, hasCoords: _hasCoords };
+}
 
 const DEMO_ACCOUNT_PREFIXES = ['a0000000-'];
 export function isDemoAccount(userId: string): boolean {
@@ -45,7 +58,7 @@ export async function seedDemoDataForLandlord(landlordId: string): Promise<void>
       description: 'Modern 6-unit apartment block close to Yaya Centre.', units: 6,
       type: 'Apartments', status: 'occupied', landlord_id: landlordId, image: '',
       latitude: -1.2921, longitude: 36.7846,
-      payment_info: { mpesaPaybill: '123456', mpesaAccount: 'SUNSET', tillNumber: '', bankName: 'KCB', bankAccountName: 'Sunset Apts', bankAccount: '11223344' },
+      payment_info: { mpesaPaybill: '123456', mpesaAccount: 'SUNSET', tillNumber: '', bankName: 'KCB', bankAccountName: 'Sunset Apts', bankAccount: '11223344', rentAmount: 35000, depositAmount: 35000 },
       created_at: new Date().toISOString(),
     },
     {
@@ -53,7 +66,7 @@ export async function seedDemoDataForLandlord(landlordId: string): Promise<void>
       description: 'Quiet gated community with 4 townhouses.', units: 4,
       type: 'Townhouses', status: 'occupied', landlord_id: landlordId, image: '',
       latitude: -1.2641, longitude: 36.8035,
-      payment_info: { mpesaPaybill: '654321', mpesaAccount: 'RIVER', tillNumber: '', bankName: 'Equity', bankAccountName: 'Riverside Villas', bankAccount: '55667788' },
+      payment_info: { mpesaPaybill: '654321', mpesaAccount: 'RIVER', tillNumber: '', bankName: 'Equity', bankAccountName: 'Riverside Villas', bankAccount: '55667788', rentAmount: 80000, depositAmount: 80000 },
       created_at: new Date().toISOString(),
     },
   ]);
@@ -127,7 +140,7 @@ export async function seedDemoDataForTenant(tenantId: string, tenantName: string
       description: 'Affordable city-centre apartments.', units: propUnitCount,
       type: 'Apartments', status: 'occupied', landlord_id: null, image: '',
       latitude: -1.2864, longitude: 36.8172,
-      payment_info: { mpesaPaybill: '999999', mpesaAccount: 'START', tillNumber: '', bankName: 'Coop Bank', bankAccountName: 'Starter Complex', bankAccount: '11220033' },
+      payment_info: { mpesaPaybill: '999999', mpesaAccount: 'START', tillNumber: '', bankName: 'Coop Bank', bankAccountName: 'Starter Complex', bankAccount: '11220033', rentAmount: 30000, depositAmount: 30000 },
       created_at: new Date().toISOString(),
     });
   }
@@ -167,14 +180,13 @@ export async function seedDemoDataForTenant(tenantId: string, tenantName: string
 
 // ─── Properties ──────────────────────────────────────────
 export async function fetchProperties(landlordId?: string): Promise<Property[]> {
-  const query = supabase.from('properties').select(PROP_COLS);
-  if (landlordId) query.eq('landlord_id', landlordId);
+  const { data: allProps, error, hasCoords } = await queryProperties(PROP_COLS_WITH_COORDS);
 
-  const { data: props, error } = await query;
+  if (error || !allProps) return [];
 
-  if (error || !props) return [];
+  const props = landlordId ? allProps.filter((p: any) => p.landlord_id === landlordId) : allProps;
 
-  const propertyIds = props.map((p) => p.id);
+  const propertyIds = props.map((p: any) => p.id);
   const { data: allUnits } = await supabase
     .from('units')
     .select('*')
@@ -187,23 +199,21 @@ export async function fetchProperties(landlordId?: string): Promise<Property[]> 
     unitsByProperty.set(u.property_id, list);
   }
 
-  return props.map((p) => {
+  return props.map((p: any) => {
     const propertyUnits = unitsByProperty.get(p.id) || [];
     const totalUnits = propertyUnits.length || p.units;
-    const occupiedUnits = propertyUnits.filter((u) => u.status === 'occupied').length;
+    const occupiedUnits = propertyUnits.filter((u: any) => u.status === 'occupied').length;
     const monthlyRevenue = propertyUnits
-      .filter((u) => u.status === 'occupied')
-      .reduce((s, u) => s + Number(u.monthly_rent), 0);
+      .filter((u: any) => u.status === 'occupied')
+      .reduce((s: number, u: any) => s + Number(u.monthly_rent), 0);
     return {
       id: p.id, name: p.name, location: p.location, description: p.description, type: p.type, units: totalUnits,
       occupiedUnits, monthlyRevenue, status: p.status,
       image: p.image, images: Array.isArray(p.images) ? p.images : [], landlordId: p.landlord_id,
+      latitude: p.latitude ?? undefined, longitude: p.longitude ?? undefined,
       paymentInfo: (typeof p.payment_info === 'string' ? JSON.parse(p.payment_info) : p.payment_info) as PaymentInfo | undefined,
       createdAt: p.created_at,
     };
-  }).filter((p) => {
-    if (!landlordId) return true;
-    return p.landlordId === landlordId;
   });
 }
 
@@ -241,13 +251,14 @@ export async function fetchPropertyById(id: string): Promise<Property | null> {
     .filter((u) => u.status === 'occupied')
     .reduce((s, u) => s + Number(u.monthly_rent), 0);
 
-  return {
-    id: p.id, name: p.name, location: p.location, description: p.description, type: p.type, units: totalUnits,
-    occupiedUnits, monthlyRevenue, status: p.status,
-    image: p.image, images: Array.isArray(p.images) ? p.images : [], landlordId: p.landlord_id,
-    paymentInfo: (typeof p.payment_info === 'string' ? JSON.parse(p.payment_info) : p.payment_info) as PaymentInfo | undefined,
-    createdAt: p.created_at,
-  };
+    return {
+      id: p.id, name: p.name, location: p.location, description: p.description, type: p.type, units: totalUnits,
+      occupiedUnits, monthlyRevenue, status: p.status,
+      image: p.image, images: Array.isArray(p.images) ? p.images : [], landlordId: p.landlord_id,
+      latitude: p.latitude ?? undefined, longitude: p.longitude ?? undefined,
+      paymentInfo: (typeof p.payment_info === 'string' ? JSON.parse(p.payment_info) : p.payment_info) as PaymentInfo | undefined,
+      createdAt: p.created_at,
+    };
 }
 
 export async function fetchPropertiesSimple(): Promise<{ id: string; name: string }[]> {
@@ -267,12 +278,12 @@ export async function fetchNearbyProperties(
 ): Promise<Property[]> {
   const { data: props, error } = await supabase
     .from('properties')
-    .select(PROP_COLS)
+    .select(PROP_COLS_WITH_COORDS)
     .order('created_at', { ascending: false });
 
   if (error || !props) return [];
 
-  const propertyIds = props.map((p) => p.id);
+  const propertyIds = props.map((p: any) => p.id);
   const { data: allUnits } = await supabase
     .from('units')
     .select('*')
@@ -290,10 +301,22 @@ export async function fetchNearbyProperties(
   const results: (Property & { distance: number })[] = [];
 
   for (const p of props) {
-    const geo = geocodeLocation(p.location);
-    if (!geo) continue;
-    const lat = geo.latitude;
-    const lng = geo.longitude;
+    const row = p as any;
+    let lat: number | null = null;
+    let lng: number | null = null;
+
+    if (row.latitude != null && row.longitude != null) {
+      lat = row.latitude;
+      lng = row.longitude;
+    } else {
+      const geo = geocodeLocation(p.location);
+      if (geo) {
+        lat = geo.latitude;
+        lng = geo.longitude;
+      }
+    }
+
+    if (lat === null || lng === null) continue;
 
     const dist = haversineDistance(userPoint, { latitude: lat, longitude: lng });
     if (dist > radiusKm) continue;
@@ -310,7 +333,7 @@ export async function fetchNearbyProperties(
       id: p.id, name: p.name, location: p.location, description: p.description, type: p.type, units: totalUnits,
       occupiedUnits, monthlyRevenue, status: p.status,
       image: p.image, images: Array.isArray(p.images) ? p.images : [], landlordId: p.landlord_id,
-      latitude: lat ?? undefined, longitude: lng ?? undefined,
+      latitude: lat, longitude: lng,
       distance: dist,
       paymentInfo: (typeof p.payment_info === 'string' ? JSON.parse(p.payment_info) : p.payment_info) as PaymentInfo | undefined,
       createdAt: p.created_at,
@@ -334,14 +357,17 @@ export async function fetchNearbyPropertiesByLocation(
 export async function createProperty(data: {
   name: string; location: string; description: string; units: number; type?: string;
   landlord_id: string; payment_info: PaymentInfo; images?: string[];
+  latitude?: number; longitude?: number;
 }): Promise<{ error?: string; id?: string }> {
   if (!data.name.trim()) return { error: 'Property name is required' };
   if (!data.location.trim()) return { error: 'Location is required' };
   if (!data.units || data.units <= 0) return { error: 'Number of units must be greater than 0' };
+  if (!data.payment_info.rentAmount || data.payment_info.rentAmount <= 0) return { error: 'Monthly rent per unit is required' };
+  if (!data.payment_info.depositAmount || data.payment_info.depositAmount <= 0) return { error: 'Security deposit amount is required' };
 
   const propId = crypto.randomUUID();
   const images = data.images || [];
-  const { error } = await supabase.from('properties').insert({
+  const insertData: Record<string, any> = {
     id: propId,
     name: data.name,
     location: data.location,
@@ -354,7 +380,11 @@ export async function createProperty(data: {
     images: images,
     payment_info: data.payment_info,
     created_at: new Date().toISOString(),
-  });
+  };
+  if (data.latitude !== undefined) insertData.latitude = data.latitude;
+  if (data.longitude !== undefined) insertData.longitude = data.longitude;
+
+  const { error } = await supabase.from('properties').insert(insertData);
 
   if (error) return { error: error.message };
 
@@ -363,7 +393,7 @@ export async function createProperty(data: {
     property_id: propId,
     unit_number: `${prefix}-${String(i + 1).padStart(3, '0')}`,
     type: data.type || '1 Bedroom',
-    monthly_rent: 0,
+    monthly_rent: data.payment_info.rentAmount,
     status: 'vacant' as const,
     tenant_id: null as string | null,
   }));
@@ -381,6 +411,8 @@ export async function updateProperty(id: string, data: {
   image?: string;
   images?: string[];
   payment_info?: PaymentInfo;
+  latitude?: number;
+  longitude?: number;
 }): Promise<{ error?: string }> {
   const updates: Record<string, any> = {};
   if (data.name !== undefined) updates.name = data.name;
@@ -390,6 +422,8 @@ export async function updateProperty(id: string, data: {
   if (data.image !== undefined) updates.image = data.image;
   if (data.images !== undefined) updates.images = data.images;
   if (data.payment_info !== undefined) updates.payment_info = data.payment_info;
+  if (data.latitude !== undefined) updates.latitude = data.latitude;
+  if (data.longitude !== undefined) updates.longitude = data.longitude;
 
   if (Object.keys(updates).length === 0) return {};
 
@@ -405,16 +439,66 @@ export async function updateProperty(id: string, data: {
   return {};
 }
 
+let storageReady = false;
+
+async function ensureStorageReady(): Promise<void> {
+  if (storageReady) return;
+  const { error } = await supabase.rpc('setup_storage');
+  if (error) {
+    console.error('Storage setup RPC failed:', error.message);
+  } else {
+    storageReady = true;
+  }
+}
+
 export async function uploadPropertyImage(propertyId: string, file: File): Promise<{ url?: string; error?: string }> {
   const ext = file.name.split('.').pop() || 'jpg';
   const filePath = `${propertyId}/${Date.now()}.${ext}`;
 
-  const { error: uploadError } = await supabase.storage
+  await ensureStorageReady();
+
+  let { error: uploadError } = await supabase.storage
     .from('property-images')
     .upload(filePath, file, { contentType: file.type, upsert: false });
 
   if (uploadError) {
-    return { error: uploadError.message };
+    const msg = uploadError.message || String(uploadError);
+
+    if (msg.includes('Bucket not found') || msg.includes('not found')) {
+      const { error: createErr } = await supabase.storage.createBucket('property-images', {
+        public: true,
+        fileSizeLimit: 5 * 1024 * 1024,
+        allowedMimeTypes: ['image/jpeg', 'image/png', 'image/webp', 'image/gif'],
+      });
+      if (createErr) {
+        return { error: `Storage bucket "property-images" not found. Please run setup_storage.sql in your Supabase SQL Editor. Error: ${createErr.message}` };
+      }
+      storageReady = false;
+      await ensureStorageReady();
+      const { error: retryErr } = await supabase.storage
+        .from('property-images')
+        .upload(filePath, file, { contentType: file.type, upsert: false });
+      if (retryErr) {
+        return { error: `Upload failed after creating bucket: ${retryErr.message}` };
+      }
+      const { data: urlData } = supabase.storage.from('property-images').getPublicUrl(filePath);
+      return { url: urlData.publicUrl };
+    }
+
+    if (msg.includes('row-level security') || msg.includes('RLS')) {
+      storageReady = false;
+      await ensureStorageReady();
+      const { error: retryErr } = await supabase.storage
+        .from('property-images')
+        .upload(filePath, file, { contentType: file.type, upsert: false });
+      if (!retryErr) {
+        const { data: urlData } = supabase.storage.from('property-images').getPublicUrl(filePath);
+        return { url: urlData.publicUrl };
+      }
+      return { error: `RLS policy blocked upload. Please run setup_storage.sql in your Supabase SQL Editor. Error: ${retryErr.message}` };
+    }
+
+    return { error: msg };
   }
 
   const { data: urlData } = supabase.storage
@@ -1276,6 +1360,80 @@ export async function deactivateTenant(id: string): Promise<{ error?: string }> 
   }
 
   return {};
+}
+
+// ─── Tenant Payments (for tenant portal) ──────────────
+export async function fetchTenantPayments(tenantId: string): Promise<Payment[]> {
+  const { data: payRows, error } = await supabase
+    .from('payments')
+    .select('*')
+    .eq('tenant_id', tenantId)
+    .order('due_date', { ascending: false });
+
+  if (error || !payRows) return [];
+
+  const unitIds = [...new Set(payRows.filter((p) => p.unit_id).map((p) => p.unit_id))];
+  const { data: units } = unitIds.length > 0
+    ? await supabase.from('units').select('id, unit_number').in('id', unitIds)
+    : { data: [] as any[] };
+
+  const unitMap = new Map((units || []).map((u) => [u.id, u.unit_number]));
+
+  const [{ data: profile }, unitResult] = await Promise.all([
+    supabase.from('profiles').select('name').eq('id', tenantId).single(),
+    { data: units },
+  ]);
+
+  const tenantName = profile?.name || '';
+
+  return payRows.map((p) => ({
+    id: p.id, tenantId: p.tenant_id,
+    tenantName,
+    amount: Number(p.amount), date: p.due_date,
+    status: p.status,
+    method: (p.method || 'mpesa') as 'mpesa' | 'bank' | 'cash',
+    transactionId: p.transaction_id ?? undefined,
+    receiptId: p.receipt_id ?? undefined,
+    unitNumber: p.unit_id ? (unitMap.get(p.unit_id) || '') : '',
+  }));
+}
+
+// ─── Tenant Maintenance Requests (for tenant portal) ──
+export async function fetchTenantMaintenanceRequests(tenantId: string): Promise<MaintenanceRequest[]> {
+  const { data: maintRows, error } = await supabase
+    .from('maintenance_requests')
+    .select('*')
+    .eq('tenant_id', tenantId)
+    .order('created_at', { ascending: false });
+
+  if (error || !maintRows) return [];
+
+  const propertyIds = [...new Set(maintRows.map((m) => m.property_id))];
+  const unitIds = [...new Set(maintRows.filter((m) => m.unit_id).map((m) => m.unit_id))];
+
+  const [{ data: properties }, { data: units }] = await Promise.all([
+    propertyIds.length > 0
+      ? supabase.from('properties').select('id, name').in('id', propertyIds)
+      : { data: [] as any[], error: null },
+    unitIds.length > 0
+      ? supabase.from('units').select('id, unit_number').in('id', unitIds)
+      : { data: [] as any[], error: null },
+  ]);
+
+  const propertyMap = new Map((properties || []).map((p) => [p.id, p.name]));
+  const unitMap = new Map((units || []).map((u) => [u.id, u.unit_number]));
+
+  return maintRows.map((m) => ({
+    id: m.id, tenantId: m.tenant_id,
+    tenantName: '',
+    propertyId: m.property_id, propertyName: propertyMap.get(m.property_id) || '',
+    unitNumber: m.unit_id ? (unitMap.get(m.unit_id) || '') : '',
+    category: m.category, description: m.description, priority: m.priority,
+    status: m.status, assignedTo: m.assigned_to,
+    images: Array.isArray(m.images) ? m.images : [],
+    createdAt: m.created_at, completedAt: m.completed_at, progress: m.progress,
+    cost: m.cost ? Number(m.cost) : undefined,
+  }));
 }
 
 // ─── Permanently Delete Tenant ─────────────────────────

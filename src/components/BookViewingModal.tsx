@@ -10,6 +10,7 @@ interface Property {
   university: string;
   beds: string;
   image: string;
+  images?: string[];
 }
 
 interface BookViewingModalProps {
@@ -80,7 +81,7 @@ export default function BookViewingModal({ property, isOpen, onClose }: BookView
         <div className="relative h-32 overflow-hidden">
           <div
             className="w-full h-full bg-cover bg-center"
-            style={{ backgroundImage: `url('${property.image}')` }}
+            style={{ backgroundImage: `url('${property.images?.[0] || property.image}')` }}
           />
           <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
           <button

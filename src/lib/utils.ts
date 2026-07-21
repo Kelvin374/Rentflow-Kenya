@@ -67,7 +67,7 @@ export interface GeoPoint {
   longitude: number;
 }
 
-const NAIROBI_AREAS: Record<string, GeoPoint> = {
+export const NAIROBI_AREAS: Record<string, GeoPoint> = {
   'westlands':      { latitude: -1.2641, longitude: 36.8035 },
   'kilimani':       { latitude: -1.2921, longitude: 36.7846 },
   'lavington':      { latitude: -1.2773, longitude: 36.7630 },

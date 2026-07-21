@@ -103,7 +103,7 @@ export function PropertyDrawer({ property, isOpen, onClose }: PropertyDrawerProp
         <div className="flex-1 overflow-y-auto custom-scrollbar p-6 space-y-8">
           <div className="grid grid-cols-2 gap-2 rounded-2xl overflow-hidden">
             <div className="col-span-2 h-48 bg-surface-container">
-              {property.images?.[0] || property.image ? (
+              {(property.images && property.images.length > 0 ? property.images[0] : property.image) ? (
                 <img src={property.images?.[0] || property.image} alt={property.name} className="w-full h-full object-cover" />
               ) : (
                 <div className="w-full h-full flex items-center justify-center">
@@ -111,15 +111,23 @@ export function PropertyDrawer({ property, isOpen, onClose }: PropertyDrawerProp
                 </div>
               )}
             </div>
-            <div className="h-24 bg-surface-container">
-              <div className="w-full h-full flex items-center justify-center">
-                <span className="material-symbols-outlined text-2xl text-on-surface-variant">living</span>
-              </div>
+            <div className="h-24 bg-surface-container overflow-hidden">
+              {property.images && property.images.length > 1 && property.images[1] ? (
+                <img src={property.images[1]} alt={`${property.name} photo 2`} className="w-full h-full object-cover" />
+              ) : (
+                <div className="w-full h-full flex items-center justify-center">
+                  <span className="material-symbols-outlined text-2xl text-on-surface-variant">living</span>
+                </div>
+              )}
             </div>
-            <div className="h-24 bg-surface-container">
-              <div className="w-full h-full flex items-center justify-center">
-                <span className="material-symbols-outlined text-2xl text-on-surface-variant">bedroom_parent</span>
-              </div>
+            <div className="h-24 bg-surface-container overflow-hidden">
+              {property.images && property.images.length > 2 && property.images[2] ? (
+                <img src={property.images[2]} alt={`${property.name} photo 3`} className="w-full h-full object-cover" />
+              ) : (
+                <div className="w-full h-full flex items-center justify-center">
+                  <span className="material-symbols-outlined text-2xl text-on-surface-variant">bedroom_parent</span>
+                </div>
+              )}
             </div>
           </div>
 

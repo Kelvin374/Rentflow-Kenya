@@ -10,7 +10,14 @@ import { formatCurrency, formatDistance, geocodeLocation } from '@/lib/utils';
 import type { Property } from '@/types';
 import { useToast } from '@/components/Toast';
 
-const GALLERY_PLACEHOLDERS: string[] = [];
+const GALLERY_PLACEHOLDERS = [
+  'https://images.unsplash.com/photo-1522708323590-d24dbb6b0267?w=800&h=600&fit=crop',
+  'https://images.unsplash.com/photo-1502672260266-1c1ef2d93688?w=800&h=600&fit=crop',
+  'https://images.unsplash.com/photo-1560448204-e02f11c3d0e2?w=800&h=600&fit=crop',
+  'https://images.unsplash.com/photo-1493809842364-78817add7ffb?w=800&h=600&fit=crop',
+  'https://images.unsplash.com/photo-1545324418-cc1a3fa10c00?w=800&h=600&fit=crop',
+  'https://images.unsplash.com/photo-1512917774080-9991f1c4c750?w=800&h=600&fit=crop',
+];
 
 export default function PropertyListingPage() {
   const params = useParams();
@@ -74,10 +81,9 @@ export default function PropertyListingPage() {
     );
   }
 
-  const avgRent = property.occupiedUnits > 0
-    ? Math.round(property.monthlyRevenue / property.occupiedUnits)
-    : 0;
-  const securityDeposit = avgRent;
+  const avgRent = property.paymentInfo?.rentAmount
+    || (property.occupiedUnits > 0 ? Math.round(property.monthlyRevenue / property.occupiedUnits) : 0);
+  const securityDeposit = property.paymentInfo?.depositAmount || avgRent;
   const serviceCharge = 0;
 
   return (
@@ -311,7 +317,7 @@ export default function PropertyListingPage() {
                   <div className="h-40 relative overflow-hidden">
                     <div
                       className="w-full h-full bg-cover bg-center group-hover:scale-105 transition-transform duration-500"
-                      style={{ backgroundImage: `url('${p.image || GALLERY_PLACEHOLDERS[i % GALLERY_PLACEHOLDERS.length]}')` }}
+                      style={{ backgroundImage: `url('${p.images?.[0] || p.image || GALLERY_PLACEHOLDERS[i % GALLERY_PLACEHOLDERS.length]}')` }}
                     />
                     {p.distance !== undefined && (
                       <div className="absolute top-3 left-3 bg-white/90 backdrop-blur px-2 py-1 rounded-full flex items-center gap-1 shadow-sm">
@@ -324,7 +330,7 @@ export default function PropertyListingPage() {
                     <h4 className="font-bold text-sm mb-1">{p.name}</h4>
                     <p className="text-xs text-on-surface-variant mb-2">{p.location}</p>
                     <div className="flex justify-between items-center">
-                      <span className="text-primary font-bold text-sm">{p.monthlyRevenue > 0 ? formatCurrency(Math.round(p.monthlyRevenue / Math.max(p.occupiedUnits, 1))) : 'Check'}</span>
+                      <span className="text-primary font-bold text-sm">{(p.paymentInfo?.rentAmount || (p.monthlyRevenue > 0 ? Math.round(p.monthlyRevenue / Math.max(p.occupiedUnits, 1)) : 0)) > 0 ? formatCurrency(p.paymentInfo?.rentAmount || Math.round(p.monthlyRevenue / Math.max(p.occupiedUnits, 1))) : 'Check'}</span>
                       <span className="text-xs text-on-surface-variant">{p.units - p.occupiedUnits} vacant</span>
                     </div>
                   </div>

@@ -4,11 +4,12 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth';
 import { fetchPropertyById, updateProperty, uploadPropertyImage } from '@/lib/supabase-api';
-import { ArrowLeft, Smartphone, ChevronDown, ChevronUp, Camera, X } from 'lucide-react';
+import { ArrowLeft, Smartphone, ChevronDown, ChevronUp, Camera, X, MapPin, Locate } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { useToast } from '@/components/Toast';
 import type { PaymentInfo } from '@/types';
+import { NAIROBI_AREAS, geocodeLocation } from '@/lib/utils';
 
 const PROPERTY_TYPES = [
   'Bedsitter', 'Studio', '1 Bedroom', '2 Bedroom', '3 Bedroom',
@@ -23,16 +24,20 @@ export default function EditPropertyPage() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const propertyId = params.id as string;
 
-  const [form, setForm] = useState({ name: '', location: '', description: '', units: '', type: '' });
+  const [form, setForm] = useState({ name: '', location: '', description: '', units: '', type: '', rent: '', deposit: '' });
   const [existingImages, setExistingImages] = useState<string[]>([]);
   const [newImages, setNewImages] = useState<{ file: File; preview: string }[]>([]);
   const [uploadingImages, setUploadingImages] = useState(false);
   const [showPayment, setShowPayment] = useState(false);
-  const [payment, setPayment] = useState<PaymentInfo>({ mpesaPaybill: '', mpesaAccount: '', tillNumber: '', bankName: '', bankAccountName: '', bankAccount: '' });
+  const [payment, setPayment] = useState<PaymentInfo>({ mpesaPaybill: '', mpesaAccount: '', tillNumber: '', bankName: '', bankAccountName: '', bankAccount: '', rentAmount: 0, depositAmount: 0 });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [dragActive, setDragActive] = useState(false);
   const [loadingProperty, setLoadingProperty] = useState(true);
+  const [locationSuggestions, setLocationSuggestions] = useState<{ name: string; coords: { latitude: number; longitude: number } }[]>([]);
+  const [selectedCoords, setSelectedCoords] = useState<{ latitude: number; longitude: number } | null>(null);
+  const [locating, setLocating] = useState(false);
+  const locationRef = useRef<HTMLDivElement>(null);
   const { showToast } = useToast();
 
   useEffect(() => {
@@ -42,9 +47,17 @@ export default function EditPropertyPage() {
   useEffect(() => {
     fetchPropertyById(propertyId).then((prop) => {
       if (!prop) { setLoadingProperty(false); return; }
-      setForm({ name: prop.name, location: prop.location, description: prop.description || '', units: String(prop.units), type: prop.type || '' });
+      setForm({
+        name: prop.name, location: prop.location, description: prop.description || '',
+        units: String(prop.units), type: prop.type || '',
+        rent: prop.paymentInfo?.rentAmount ? String(prop.paymentInfo.rentAmount) : '',
+        deposit: prop.paymentInfo?.depositAmount ? String(prop.paymentInfo.depositAmount) : '',
+      });
       setExistingImages(prop.images || []);
       if (prop.paymentInfo) setPayment(prop.paymentInfo);
+      if (prop.latitude && prop.longitude) {
+        setSelectedCoords({ latitude: prop.latitude, longitude: prop.longitude });
+      }
       setLoadingProperty(false);
     });
   }, [propertyId]);
@@ -52,6 +65,73 @@ export default function EditPropertyPage() {
   useEffect(() => {
     return () => { newImages.forEach((img) => URL.revokeObjectURL(img.preview)); };
   }, [newImages]);
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (locationRef.current && !locationRef.current.contains(e.target as Node)) {
+        setLocationSuggestions([]);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const handleLocationChange = (value: string) => {
+    setForm({ ...form, location: value });
+    setSelectedCoords(null);
+    if (value.trim().length > 0) {
+      const lower = value.toLowerCase().trim();
+      const matches = Object.entries(NAIROBI_AREAS)
+        .filter(([name]) => name.includes(lower) || lower.includes(name))
+        .slice(0, 6)
+        .map(([name, coords]) => ({
+          name: name.charAt(0).toUpperCase() + name.slice(1),
+          coords,
+        }));
+      setLocationSuggestions(matches);
+    } else {
+      setLocationSuggestions([]);
+    }
+  };
+
+  const selectLocationSuggestion = (name: string, coords: { latitude: number; longitude: number }) => {
+    setForm({ ...form, location: name + ', Nairobi' });
+    setSelectedCoords(coords);
+    setLocationSuggestions([]);
+  };
+
+  const useMyLocation = () => {
+    if (!navigator.geolocation) {
+      showToast('Geolocation is not supported by your browser', 'error');
+      return;
+    }
+    setLocating(true);
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        const { latitude, longitude } = pos.coords;
+        setSelectedCoords({ latitude, longitude });
+        const matched = Object.entries(NAIROBI_AREAS)
+          .sort(([, a], [, b]) => {
+            const dA = Math.sqrt((a.latitude - latitude) ** 2 + (a.longitude - longitude) ** 2);
+            const dB = Math.sqrt((b.latitude - latitude) ** 2 + (b.longitude - longitude) ** 2);
+            return dA - dB;
+          })[0];
+        if (matched) {
+          const areaName = matched[0].charAt(0).toUpperCase() + matched[0].slice(1);
+          setForm({ ...form, location: areaName + ', Nairobi' });
+        } else {
+          setForm({ ...form, location: `${latitude.toFixed(4)}, ${longitude.toFixed(4)}` });
+        }
+        setLocating(false);
+        showToast('Location detected!', 'success');
+      },
+      () => {
+        setLocating(false);
+        showToast('Could not detect location. Please select from the list or type manually.', 'error');
+      },
+      { timeout: 10000, maximumAge: 300000 },
+    );
+  };
 
   const handleFiles = useCallback((files: FileList | File[]) => {
     const valid: { file: File; preview: string }[] = [];
@@ -92,13 +172,15 @@ export default function EditPropertyPage() {
 
     if (newImages.length > 0) {
       for (const img of newImages) {
-        const { url } = await uploadPropertyImage(propertyId, img.file);
+        const { url, error: uploadError } = await uploadPropertyImage(propertyId, img.file);
         if (url) uploadedUrls.push(url);
+        if (uploadError) console.error('Image upload failed:', uploadError, img.file.name);
       }
     }
 
     const finalImages = [...keptExisting, ...uploadedUrls];
 
+    const geo = selectedCoords || geocodeLocation(form.location);
     const { error: updateError } = await updateProperty(propertyId, {
       name: form.name,
       location: form.location,
@@ -106,7 +188,13 @@ export default function EditPropertyPage() {
       type: form.type || undefined,
       image: finalImages[0] || '',
       images: finalImages,
-      payment_info: payment,
+      payment_info: {
+        ...payment,
+        rentAmount: parseInt(form.rent) || payment.rentAmount || 0,
+        depositAmount: parseInt(form.deposit) || payment.depositAmount || 0,
+      },
+      latitude: geo?.latitude,
+      longitude: geo?.longitude,
     });
 
     if (updateError) {
@@ -211,9 +299,67 @@ export default function EditPropertyPage() {
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Location</label>
-              <input type="text" value={form.location} onChange={(e) => setForm({ ...form, location: e.target.value })}
-                className="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
-                placeholder="e.g. Westlands, Nairobi" required />
+              <div ref={locationRef} className="relative">
+                <div className="flex gap-2">
+                  <div className="relative flex-1">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">
+                      <MapPin size={16} />
+                    </span>
+                    <input
+                      type="text"
+                      value={form.location}
+                      onChange={(e) => handleLocationChange(e.target.value)}
+                      onFocus={() => {
+                        if (form.location.trim().length > 0) {
+                          const lower = form.location.toLowerCase().trim();
+                          const matches = Object.entries(NAIROBI_AREAS)
+                            .filter(([name]) => name.includes(lower) || lower.includes(name))
+                            .slice(0, 6)
+                            .map(([name, coords]) => ({
+                              name: name.charAt(0).toUpperCase() + name.slice(1),
+                              coords,
+                            }));
+                          setLocationSuggestions(matches);
+                        }
+                      }}
+                      className="w-full rounded-lg border border-gray-300 pl-9 pr-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
+                      placeholder="e.g. Westlands, Nairobi"
+                      required
+                    />
+                  </div>
+                  <button
+                    type="button"
+                    onClick={useMyLocation}
+                    disabled={locating}
+                    className="flex items-center gap-1.5 px-3 py-2.5 rounded-lg border border-gray-300 bg-gray-50 hover:bg-gray-100 text-sm font-medium text-gray-700 transition-colors disabled:opacity-50 whitespace-nowrap"
+                    title="Use my current location"
+                  >
+                    <Locate size={16} className={locating ? 'animate-spin' : 'text-primary'} />
+                    <span className="hidden sm:inline">{locating ? 'Detecting...' : 'My Location'}</span>
+                  </button>
+                </div>
+                {locationSuggestions.length > 0 && (
+                  <div className="absolute z-20 mt-1 w-full bg-white border border-gray-200 rounded-lg shadow-lg max-h-48 overflow-y-auto">
+                    {locationSuggestions.map((s) => (
+                      <button
+                        key={s.name}
+                        type="button"
+                        onClick={() => selectLocationSuggestion(s.name, s.coords)}
+                        className="w-full flex items-center gap-2 px-3 py-2.5 text-sm text-left hover:bg-primary/5 transition-colors"
+                      >
+                        <MapPin size={14} className="text-primary shrink-0" />
+                        <span>{s.name}, Nairobi</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+                {selectedCoords && (
+                  <p className="mt-1 text-xs text-green-600 flex items-center gap-1">
+                    <span className="material-symbols-outlined text-sm">check_circle</span>
+                    Coordinates: {selectedCoords.latitude.toFixed(4)}, {selectedCoords.longitude.toFixed(4)}
+                  </p>
+                )}
+              </div>
             </div>
 
             <div>
@@ -221,6 +367,21 @@ export default function EditPropertyPage() {
               <textarea value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })}
                 className="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
                 placeholder="Property description..." rows={3} />
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Rent per Unit (KES/month) <span className="text-red-500">*</span></label>
+                <input type="number" value={form.rent} onChange={(e) => setForm({ ...form, rent: e.target.value })}
+                  className="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
+                  placeholder="e.g. 35000" required min="0" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Security Deposit (KES) <span className="text-red-500">*</span></label>
+                <input type="number" value={form.deposit} onChange={(e) => setForm({ ...form, deposit: e.target.value })}
+                  className="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
+                  placeholder="e.g. 35000" required min="0" />
+              </div>
             </div>
 
             <div className="border border-gray-200 rounded-xl overflow-hidden">

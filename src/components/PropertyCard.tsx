@@ -16,12 +16,22 @@ export function PropertyCard({ property, href = '#' }: PropertyCardProps) {
 
   return (
     <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-      <div className="h-2 bg-gradient-to-r from-primary to-primary-dark" />
+      {property.images?.[0] || property.image ? (
+        <div className="h-40 overflow-hidden">
+          <img src={property.images?.[0] || property.image} alt={property.name} className="w-full h-full object-cover" />
+        </div>
+      ) : (
+        <div className="h-2 bg-gradient-to-r from-primary to-primary-dark" />
+      )}
       <div className="p-5">
         <div className="flex items-start justify-between mb-4">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center">
-              <Building2 size={20} className="text-primary" />
+            <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center overflow-hidden">
+              {property.images?.[0] || property.image ? (
+                <img src={property.images?.[0] || property.image} alt={property.name} className="w-full h-full object-cover" />
+              ) : (
+                <Building2 size={20} className="text-primary" />
+              )}
             </div>
             <div>
               <h3 className="font-semibold text-gray-900">{property.name}</h3>

@@ -154,16 +154,23 @@ export default function TenantDashboardPage() {
           {/* Bento Widgets Grid */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
             {/* Current Property */}
-            <div className="bg-surface-container-lowest border border-outline-variant p-6 rounded-2xl hover:shadow-md transition-shadow">
-              <div className="flex justify-between items-start mb-4">
-                <div className="bg-primary-fixed w-10 h-10 rounded-xl flex items-center justify-center">
-                  <span className="material-symbols-outlined text-primary" style={{ fontVariationSettings: "'FILL' 1" }}>home</span>
+            <Link href={propertyData?.id ? `/listing/${propertyData.id}` : '#'} className="bg-surface-container-lowest border border-outline-variant rounded-2xl hover:shadow-md transition-shadow overflow-hidden block">
+              {(propertyData?.images?.[0] || propertyData?.image) ? (
+                <div className="h-24 overflow-hidden">
+                  <img src={propertyData.images?.[0] || propertyData.image} alt={propertyData.name} className="w-full h-full object-cover" />
                 </div>
-                <span className="text-xs text-on-surface-variant">{propertyData?.name || 'No property'}</span>
+              ) : null}
+              <div className="p-6">
+                <div className="flex justify-between items-start mb-4">
+                  <div className="bg-primary-fixed w-10 h-10 rounded-xl flex items-center justify-center">
+                    <span className="material-symbols-outlined text-primary" style={{ fontVariationSettings: "'FILL' 1" }}>home</span>
+                  </div>
+                  <span className="text-xs text-on-surface-variant">{propertyData?.name || 'No property'}</span>
+                </div>
+                <h3 className="text-[20px] leading-[28px] font-semibold">{propertyData?.location || '—'}</h3>
+                <p className="font-semibold text-sm text-on-surface-variant">Current Residence</p>
               </div>
-              <h3 className="text-[20px] leading-[28px] font-semibold">{propertyData?.location || '—'}</h3>
-              <p className="font-semibold text-sm text-on-surface-variant">Current Residence</p>
-            </div>
+            </Link>
 
             {/* Unit Info */}
             <div className="bg-surface-container-lowest border border-outline-variant p-6 rounded-2xl hover:shadow-md transition-shadow">
@@ -275,7 +282,7 @@ export default function TenantDashboardPage() {
                 <div className="p-6">
                   <div className="flex justify-between items-start mb-2">
                     <h4 className="text-[18px] leading-[28px] font-bold">{property.name}</h4>
-                    <p className="text-primary font-bold">{property.monthlyRevenue > 0 ? formatCurrency(Math.round(property.monthlyRevenue / Math.max(property.occupiedUnits, 1))) : 'Check'}</p>
+                    <p className="text-primary font-bold">{(property.paymentInfo?.rentAmount || (property.monthlyRevenue > 0 ? Math.round(property.monthlyRevenue / Math.max(property.occupiedUnits, 1)) : 0)) > 0 ? formatCurrency(property.paymentInfo?.rentAmount || Math.round(property.monthlyRevenue / Math.max(property.occupiedUnits, 1))) : 'Check'}</p>
                   </div>
                   <div className="flex items-center gap-4 text-on-surface-variant mb-4">
                     <div className="flex items-center gap-1">
