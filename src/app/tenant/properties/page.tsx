@@ -14,14 +14,6 @@ import { useToast } from '@/components/Toast';
 import BookViewingModal from '@/components/BookViewingModal';
 import type { Property } from '@/types';
 
-const PLACEHOLDER_IMAGES = [
-  'https://images.unsplash.com/photo-1545324418-cc1a3fa10c00?w=600&h=400&fit=crop',
-  'https://images.unsplash.com/photo-1512917774080-9991f1c4c750?w=600&h=400&fit=crop',
-  'https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?w=600&h=400&fit=crop',
-  'https://images.unsplash.com/photo-1600596542815-ffad4c1539a9?w=600&h=400&fit=crop',
-  'https://images.unsplash.com/photo-1577495508326-19a1b3cf65b7?w=600&h=400&fit=crop',
-];
-
 export default function TenantPropertiesPage() {
   const { user, isAuthenticated, isLoading } = useAuth();
   const router = useRouter();
@@ -239,10 +231,16 @@ export default function TenantPropertiesPage() {
                   {/* Image */}
                   <div className="h-52 relative overflow-hidden">
                     <Link href={`/listing/${property.id}`}>
-                      <div
-                        className="w-full h-full bg-cover bg-center group-hover:scale-105 transition-transform duration-500"
-                        style={{ backgroundImage: `url('${property.images?.[0] || property.image || PLACEHOLDER_IMAGES[idx % PLACEHOLDER_IMAGES.length]}')` }}
-                      />
+                      {(property.images?.[0] || property.image) ? (
+                        <div
+                          className="w-full h-full bg-cover bg-center group-hover:scale-105 transition-transform duration-500"
+                          style={{ backgroundImage: `url('${property.images?.[0] || property.image}')` }}
+                        />
+                      ) : (
+                        <div className="w-full h-full bg-surface-container flex items-center justify-center">
+                          <span className="material-symbols-outlined text-outline text-4xl">apartment</span>
+                        </div>
+                      )}
                     </Link>
                     {/* Availability Badge */}
                     <div className="absolute top-4 left-4">

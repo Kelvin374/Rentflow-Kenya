@@ -10,15 +10,6 @@ import { formatCurrency, formatDistance, geocodeLocation } from '@/lib/utils';
 import type { Property } from '@/types';
 import { useToast } from '@/components/Toast';
 
-const GALLERY_PLACEHOLDERS = [
-  'https://images.unsplash.com/photo-1522708323590-d24dbb6b0267?w=800&h=600&fit=crop',
-  'https://images.unsplash.com/photo-1502672260266-1c1ef2d93688?w=800&h=600&fit=crop',
-  'https://images.unsplash.com/photo-1560448204-e02f11c3d0e2?w=800&h=600&fit=crop',
-  'https://images.unsplash.com/photo-1493809842364-78817add7ffb?w=800&h=600&fit=crop',
-  'https://images.unsplash.com/photo-1545324418-cc1a3fa10c00?w=800&h=600&fit=crop',
-  'https://images.unsplash.com/photo-1512917774080-9991f1c4c750?w=800&h=600&fit=crop',
-];
-
 export default function PropertyListingPage() {
   const params = useParams();
   const router = useRouter();
@@ -315,10 +306,16 @@ export default function PropertyListingPage() {
               {nearbyProperties.map((p, i) => (
                 <Link key={p.id} href={`/listing/${p.id}`} className="bg-surface-container-lowest rounded-2xl border border-outline-variant overflow-hidden group hover:shadow-xl transition-all duration-300 block">
                   <div className="h-40 relative overflow-hidden">
-                    <div
-                      className="w-full h-full bg-cover bg-center group-hover:scale-105 transition-transform duration-500"
-                      style={{ backgroundImage: `url('${p.images?.[0] || p.image || GALLERY_PLACEHOLDERS[i % GALLERY_PLACEHOLDERS.length]}')` }}
-                    />
+                    {(p.images?.[0] || p.image) ? (
+                      <div
+                        className="w-full h-full bg-cover bg-center group-hover:scale-105 transition-transform duration-500"
+                        style={{ backgroundImage: `url('${p.images?.[0] || p.image}')` }}
+                      />
+                    ) : (
+                      <div className="w-full h-full bg-surface-container flex items-center justify-center">
+                        <span className="material-symbols-outlined text-outline text-3xl">apartment</span>
+                      </div>
+                    )}
                     {p.distance !== undefined && (
                       <div className="absolute top-3 left-3 bg-white/90 backdrop-blur px-2 py-1 rounded-full flex items-center gap-1 shadow-sm">
                         <span className="material-symbols-outlined text-primary text-xs">location_on</span>

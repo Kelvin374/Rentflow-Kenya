@@ -6,10 +6,11 @@ import { Header } from '@/components/Header';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { useAuth } from '@/lib/auth';
+import type { User } from '@/types';
 import { RoleGuard } from '@/components/RoleGuard';
 import { uploadAvatar } from '@/lib/supabase-api';
 import { Avatar } from '@/components/Avatar';
-import { Bell, Shield, User, Smartphone, LogOut, Camera } from 'lucide-react';
+import { Bell, Shield, Smartphone, LogOut, Camera, User as UserIcon } from 'lucide-react';
 
 export default function SettingsPage() {
   return (
@@ -23,11 +24,23 @@ function SettingsContent() {
   const { user, signOut, updateUser, isAuthenticated, isLoading } = useAuth();
   const router = useRouter();
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const [profile, setProfile] = useState({
+
+  const [editedProfile, setEditedProfile] = useState({
     name: '',
     email: '',
     phone: '',
   });
+
+  useEffect(() => {
+    if (user) {
+      setEditedProfile({
+        name: user.name || '',
+        email: user.email || '',
+        phone: user.phone || '',
+      });
+    }
+  }, [user]);
+
   const [notifications, setNotifications] = useState({
     email: true, sms: true, payment: true, maintenance: false,
   });
@@ -37,17 +50,12 @@ function SettingsContent() {
   useEffect(() => {
     if (isLoading) return;
     if (!isAuthenticated) { router.push('/login'); return; }
-    setProfile({
-      name: user?.name || '',
-      email: user?.email || '',
-      phone: user?.phone || '',
-    });
-  }, [user, isAuthenticated, isLoading, router]);
+  }, [isAuthenticated, isLoading, router]);
 
   const handleSaveProfile = async (e: React.FormEvent) => {
     e.preventDefault();
     setSaving(true);
-    await updateUser({ name: profile.name, phone: profile.phone });
+    await updateUser({ name: editedProfile.name, phone: editedProfile.phone });
     setSaving(false);
   };
 
@@ -81,7 +89,7 @@ function SettingsContent() {
       <div className="p-6 space-y-6 max-w-3xl mx-auto">
         <Card>
           <CardHeader>
-            <h3 className="font-semibold text-gray-900 flex items-center gap-2"><User size={18} /> Profile Information</h3>
+            <h3 className="font-semibold text-gray-900 flex items-center gap-2"><UserIcon size={18} /> Profile Information</h3>
           </CardHeader>
           <CardContent>
             <form onSubmit={handleSaveProfile} className="space-y-4">
@@ -111,17 +119,17 @@ function SettingsContent() {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Full Name</label>
-                  <input type="text" value={profile.name} onChange={(e) => setProfile({ ...profile, name: e.target.value })}
+                  <input type="text" value={editedProfile.name} onChange={(e) => setEditedProfile({ ...editedProfile, name: e.target.value })}
                     className="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50" />
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
-                  <input type="email" value={profile.email} disabled
+                  <input type="email" value={editedProfile.email} disabled
                     className="w-full rounded-lg border border-gray-200 px-3 py-2.5 text-sm bg-gray-50 text-gray-400" />
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Phone</label>
-                  <input type="tel" value={profile.phone} onChange={(e) => setProfile({ ...profile, phone: e.target.value })}
+                  <input type="tel" value={editedProfile.phone} onChange={(e) => setEditedProfile({ ...editedProfile, phone: e.target.value })}
                     className="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50" />
                 </div>
               </div>
@@ -154,28 +162,34 @@ function SettingsContent() {
           </CardContent>
         </Card>
 
-        <Card>
-          <CardHeader>
-            <h3 className="font-semibold text-gray-900 flex items-center gap-2"><Shield size={18} /> Account</h3>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <div className="flex items-center justify-between p-3 rounded-lg bg-gray-50">
-              <div className="flex items-center gap-3">
-                <Smartphone size={20} className="text-gray-400" />
-                <div>
-                  <p className="text-sm font-medium text-gray-900">M-Pesa Integration</p>
-                  <p className="text-xs text-gray-400">{user?.subscription === 'professional' || user?.subscription === 'enterprise' ? 'Connected' : 'Not configured'}</p>
+        {user?.role === 'landlord' && (
+          <Card>
+            <CardHeader>
+              <h3 className="font-semibold text-gray-900 flex items-center gap-2"><Shield size={18} /> Account</h3>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <div className="flex items-center justify-between p-3 rounded-lg bg-gray-50">
+                <div className="flex items-center gap-3">
+                  <Smartphone size={20} className="text-gray-400" />
+                  <div>
+                    <p className="text-sm font-medium text-gray-900">M-Pesa Integration</p>
+                    <p className="text-xs text-gray-400">{user?.subscription === 'professional' || user?.subscription === 'enterprise' ? 'Connected' : 'Not configured'}</p>
+                  </div>
                 </div>
+                <Button variant="outline" size="sm">Configure</Button>
               </div>
-              <Button variant="outline" size="sm">Configure</Button>
-            </div>
-            <div className="flex items-center justify-between p-3 rounded-lg bg-gray-50">
-              <div>
-                <p className="text-sm font-medium text-gray-900">Subscription</p>
-                <p className="text-xs text-gray-400 capitalize">{user?.subscription || 'free'} plan</p>
+              <div className="flex items-center justify-between p-3 rounded-lg bg-gray-50">
+                <div>
+                  <p className="text-sm font-medium text-gray-900">Subscription</p>
+                  <p className="text-xs text-gray-400 capitalize">{user?.subscription || 'free'} plan</p>
+                </div>
+                <Button variant="outline" size="sm">Upgrade</Button>
               </div>
-              <Button variant="outline" size="sm">Upgrade</Button>
-            </div>
+            </CardContent>
+          </Card>
+        )}
+        <Card>
+          <CardContent className="space-y-3">
             <button onClick={() => { signOut(); router.push('/'); }}
               className="flex items-center gap-2 text-sm text-danger hover:text-danger-dark font-medium p-2 rounded-lg hover:bg-red-50 transition-colors">
               <LogOut size={16} /> Sign Out

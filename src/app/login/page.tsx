@@ -4,12 +4,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth, getDashboardRoute } from '@/lib/auth';
 
-const DEMO_ACCOUNTS = [
-  { id: 'a0000000-0000-0000-0000-000000000001', label: 'Admin — System Admin', role: 'admin' },
-  { id: 'a0000000-0000-0000-0000-000000000002', label: 'Landlord (Professional)', role: 'landlord' },
-  { id: 'a0000000-0000-0000-0000-000000000003', label: 'Tenant — Kevin Juma', role: 'tenant' },
-  { id: 'a0000000-0000-0000-0000-000000000004', label: 'Tenant — Elizabeth Otieno', role: 'tenant' },
-];
+const DEMO_ACCOUNTS: { id: string; label: string; role: string }[] = [];
 
 export default function LoginPage() {
   const [view, setView] = useState<'login' | 'register'>('login');
@@ -238,28 +233,6 @@ export default function LoginPage() {
             </p>
           </div>
 
-          {/* Demo Accounts */}
-          <div className="relative my-6">
-            <div className="absolute inset-0 flex items-center">
-              <span className="w-full border-t border-outline-variant" />
-            </div>
-            <div className="relative flex justify-center text-[12px] leading-[16px] uppercase">
-              <span className="bg-surface-container-lowest px-4 text-on-surface-variant font-medium">Or try a demo account</span>
-            </div>
-          </div>
-
-          <div className="space-y-2 mb-4">
-            {DEMO_ACCOUNTS.filter((a) => a.role === role).map((account) => (
-              <button
-                key={account.id}
-                onClick={() => handleDemoLogin(account.id, account.role)}
-                disabled={loading}
-                className="w-full text-left px-4 py-2.5 text-sm border border-outline-variant rounded-xl bg-surface hover:bg-surface-container-low transition-colors disabled:opacity-50 font-medium text-on-surface"
-              >
-                {account.label}
-              </button>
-            ))}
-          </div>
         </div>
 
         {/* Register Container */}

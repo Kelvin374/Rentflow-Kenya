@@ -2,11 +2,11 @@
 
 import { useState, useEffect, useCallback, createContext, useContext, type ReactNode } from 'react';
 import { useAuth } from '@/lib/auth';
-import { fetchPayments, fetchMaintenance } from '@/lib/supabase-api';
+import { fetchLandlordPayments, fetchTenantPayments, fetchMaintenance, fetchLandlordMaintenance } from '@/lib/supabase-api';
 
 export interface Notification {
   id: string;
-  type: 'payment_due' | 'payment_overdue' | 'maintenance_update' | 'lease_expiry';
+  type: 'payment_due' | 'payment_overdue' | 'maintenance_update' | 'lease_expiry' | 'payment_submitted' | 'payment_approved' | 'payment_rejected';
   title: string;
   message: string;
   timestamp: string;
@@ -44,20 +44,20 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
     try {
       if (user.role === 'landlord') {
         const [payments, maintenance] = await Promise.all([
-          fetchPayments(),
-          fetchMaintenance(),
+          fetchLandlordPayments(user.id),
+          fetchLandlordMaintenance(user.id),
         ]);
 
-        const pendingPayments = payments.filter((p) => p.status === 'pending');
+        const pendingReview = payments.filter((p) => p.status === 'pending_verification');
         const overduePayments = payments.filter((p) => p.status === 'overdue');
         const activeMaintenance = maintenance.filter((m) => m.status === 'submitted' || m.status === 'in_progress');
 
-        pendingPayments.slice(0, 3).forEach((p) => {
+        pendingReview.slice(0, 5).forEach((p) => {
           newNotifications.push({
-            id: `payment-pending-${p.id}`,
-            type: 'payment_due',
-            title: 'Payment Pending',
-            message: `${p.tenantName} has a pending payment of KSh ${p.amount.toLocaleString()} for ${p.unitNumber}`,
+            id: `payment-submitted-${p.id}`,
+            type: 'payment_submitted',
+            title: 'Payment Submitted',
+            message: `${p.tenantName} submitted a payment of KSh ${p.amount.toLocaleString()} for ${p.unitNumber} — needs your review`,
             timestamp: p.date,
             read: false,
             href: '/payments',
@@ -88,11 +88,36 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
           });
         });
       } else if (user.role === 'tenant') {
-        const payments = await fetchPayments();
-        const myPayments = payments.filter((p) => p.tenantName === user.name);
+        const payments = await fetchTenantPayments(user.id);
 
-        const pendingPayments = myPayments.filter((p) => p.status === 'pending');
-        const overduePayments = myPayments.filter((p) => p.status === 'overdue');
+        const approvedPayments = payments.filter((p) => p.status === 'approved');
+        const rejectedPayments = payments.filter((p) => p.status === 'rejected');
+        const pendingPayments = payments.filter((p) => p.status === 'pending');
+        const overduePayments = payments.filter((p) => p.status === 'overdue');
+
+        approvedPayments.forEach((p) => {
+          newNotifications.push({
+            id: `tenant-approved-${p.id}`,
+            type: 'payment_approved',
+            title: 'Payment Approved',
+            message: `Your payment of KSh ${p.amount.toLocaleString()} for ${p.unitNumber} has been approved`,
+            timestamp: p.approvedAt || p.date,
+            read: false,
+            href: '/tenant/payments',
+          });
+        });
+
+        rejectedPayments.forEach((p) => {
+          newNotifications.push({
+            id: `tenant-rejected-${p.id}`,
+            type: 'payment_rejected',
+            title: 'Payment Rejected',
+            message: `Your payment of KSh ${p.amount.toLocaleString()} for ${p.unitNumber} was rejected${p.rejectionReason ? `: ${p.rejectionReason}` : ''}`,
+            timestamp: p.date,
+            read: false,
+            href: '/tenant/payments',
+          });
+        });
 
         pendingPayments.forEach((p) => {
           newNotifications.push({

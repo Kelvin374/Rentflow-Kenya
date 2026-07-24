@@ -68,7 +68,7 @@ export function TenantTable({ tenants, onDelete }: TenantTableProps) {
           </thead>
           <tbody className="divide-y divide-gray-100">
             {current.map((tenant) => (
-              <tr key={tenant.id} className="hover:bg-gray-50 transition-colors cursor-pointer" onClick={() => window.location.href = `/tenants/${tenant.id}`}>
+              <tr key={`${tenant.id}-${tenant.unitId}`} className="hover:bg-gray-50 transition-colors cursor-pointer" onClick={() => window.location.href = `/tenants/${tenant.id}`}>
                 <td className="px-5 py-3">
                   <div className="flex items-center gap-3">
                     <Avatar src={tenant.avatar} name={tenant.name} size="md" />

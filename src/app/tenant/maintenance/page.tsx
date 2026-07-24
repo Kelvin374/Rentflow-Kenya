@@ -64,7 +64,7 @@ export default function TenantMaintenancePage() {
     try {
       const [reqs, dashboard] = await Promise.all([
         fetchTenantMaintenanceRequests(user.id),
-        fetchTenantDashboardData(user.id, user.name),
+        fetchTenantDashboardData(user.id),
       ]);
       setRequests(reqs);
       if (dashboard.property) setPropertyData(dashboard.property);

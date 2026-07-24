@@ -11,8 +11,8 @@ import { RoleGuard } from '@/components/RoleGuard';
 
 import { useRealtimeSubscription } from '@/hooks/useRealtimeSubscription';
 import { formatCurrency, getStatusColor, formatDate } from '@/lib/utils';
-import { Banknote, TrendingUp, AlertTriangle, CheckCircle, Download, Crown, Smartphone } from 'lucide-react';
-import { fetchPayments, fetchLandlordPayments } from '@/lib/supabase-api';
+import { Banknote, TrendingUp, AlertTriangle, CheckCircle, Download, Crown, Smartphone, Clock, X, ShieldCheck } from 'lucide-react';
+import { fetchLandlordPayments, approvePayment, rejectPayment } from '@/lib/supabase-api';
 import type { Payment } from '@/types';
 
 export default function PaymentsPage() {
@@ -34,6 +34,9 @@ function PaymentsContent() {
   const [statusFilter, setStatusFilter] = useState('all');
   const [methodFilter, setMethodFilter] = useState('all');
   const [search, setSearch] = useState('');
+  const [actionLoading, setActionLoading] = useState<string | null>(null);
+  const [rejectModal, setRejectModal] = useState<{ open: boolean; paymentId: string; tenantName: string }>({ open: false, paymentId: '', tenantName: '' });
+  const [rejectReason, setRejectReason] = useState('');
 
   const loadData = useCallback(() => {
     setLoading(true);
@@ -63,9 +66,35 @@ function PaymentsContent() {
     return true;
   });
 
-  const paid = payments.filter((p) => p.status === 'paid').reduce((s, p) => s + p.amount, 0);
-  const pending = payments.filter((p) => p.status === 'pending').reduce((s, p) => s + p.amount, 0);
+  const paid = payments.filter((p) => p.status === 'paid' || p.status === 'approved').reduce((s, p) => s + p.amount, 0);
+  const pending = payments.filter((p) => p.status === 'pending' || p.status === 'pending_verification').reduce((s, p) => s + p.amount, 0);
   const overdue = payments.filter((p) => p.status === 'overdue').reduce((s, p) => s + p.amount, 0);
+  const pendingReview = payments.filter((p) => p.status === 'pending_verification');
+
+  const handleApprove = async (paymentId: string) => {
+    setActionLoading(paymentId);
+    const result = await approvePayment(paymentId, user?.id || '');
+    if (result.error) {
+      setError(result.error);
+    } else {
+      loadData();
+    }
+    setActionLoading(null);
+  };
+
+  const handleReject = async () => {
+    if (!rejectReason.trim()) return;
+    setActionLoading(rejectModal.paymentId);
+    const result = await rejectPayment(rejectModal.paymentId, rejectReason.trim());
+    if (result.error) {
+      setError(result.error);
+    } else {
+      setRejectModal({ open: false, paymentId: '', tenantName: '' });
+      setRejectReason('');
+      loadData();
+    }
+    setActionLoading(null);
+  };
 
   if (error) {
     return <ErrorMessage message={error} onRetry={loadData} />;
@@ -95,9 +124,20 @@ function PaymentsContent() {
           </div>
         )}
 
+        {/* Pending Review Banner */}
+        {pendingReview.length > 0 && (
+          <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 flex items-start gap-3">
+            <ShieldCheck size={20} className="text-blue-500 flex-shrink-0 mt-0.5" />
+            <div className="flex-1">
+              <p className="text-sm font-medium text-blue-800">{pendingReview.length} payment{pendingReview.length !== 1 ? 's' : ''} awaiting your review</p>
+              <p className="text-xs text-blue-700 mt-1">Tenants have submitted payments that need your verification before balances are updated.</p>
+            </div>
+          </div>
+        )}
+
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          <StatsCard title="Total Collected" value={formatCurrency(paid)} subtitle="This month" icon={Banknote} variant="success" />
-          <StatsCard title="Pending" value={formatCurrency(pending)} icon={AlertTriangle} variant="warning" />
+          <StatsCard title="Total Collected" value={formatCurrency(paid)} subtitle="Approved + Paid" icon={Banknote} variant="success" />
+          <StatsCard title="Pending Review" value={formatCurrency(pending)} icon={Clock} variant="warning" />
           <StatsCard title="Overdue" value={formatCurrency(overdue)} icon={AlertTriangle} variant="danger" />
           <StatsCard title="Collection Rate" value={payments.length > 0 ? `${Math.round((paid / (paid + pending + overdue)) * 100)}%` : '0%'} subtitle="Of total payments" icon={TrendingUp} variant="success" />
         </div>
@@ -117,8 +157,11 @@ function PaymentsContent() {
             <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}
               className="px-3 py-2 text-sm bg-white border border-gray-200 rounded-xl focus:outline-none focus:ring-1 focus:ring-primary">
               <option value="all">All Statuses</option>
+              <option value="pending_verification">Awaiting Review</option>
+              <option value="approved">Approved</option>
               <option value="paid">Paid</option>
               <option value="pending">Pending</option>
+              <option value="rejected">Rejected</option>
               <option value="overdue">Overdue</option>
             </select>
             <select value={methodFilter} onChange={(e) => setMethodFilter(e.target.value)}
@@ -159,13 +202,14 @@ function PaymentsContent() {
                   <th className="px-5 py-3">Method</th>
                   <th className="px-5 py-3">Status</th>
                   <th className="px-5 py-3">Transaction ID</th>
+                  <th className="px-5 py-3">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
                 {filteredPayments.length === 0 ? (
-                  <tr><td colSpan={7} className="text-center text-gray-400 py-8 text-sm">No payments match your filters</td></tr>
+                  <tr><td colSpan={8} className="text-center text-gray-400 py-8 text-sm">No payments match your filters</td></tr>
                 ) : filteredPayments.map((payment) => (
-                  <tr key={payment.id} className="hover:bg-gray-50 transition-colors">
+                  <tr key={payment.id} className={`hover:bg-gray-50 transition-colors ${payment.status === 'pending_verification' ? 'bg-blue-50/50' : ''}`}>
                     <td className="px-5 py-3 text-sm font-medium text-gray-900">{payment.tenantName}</td>
                     <td className="px-5 py-3 text-sm text-gray-500">{payment.unitNumber}</td>
                     <td className="px-5 py-3 text-sm font-semibold text-gray-900">{formatCurrency(payment.amount)}</td>
@@ -177,11 +221,42 @@ function PaymentsContent() {
                     </td>
                     <td className="px-5 py-3">
                       <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusColor(payment.status)}`}>
-                        {payment.status === 'paid' ? <CheckCircle size={12} /> : null}
-                        {payment.status.charAt(0).toUpperCase() + payment.status.slice(1)}
+                        {payment.status === 'paid' || payment.status === 'approved' ? <CheckCircle size={12} /> : null}
+                        {payment.status === 'pending_verification' ? 'Awaiting Review' : payment.status.charAt(0).toUpperCase() + payment.status.slice(1)}
                       </span>
+                      {payment.status === 'rejected' && payment.rejectionReason && (
+                        <p className="text-[11px] text-red-500 mt-1 max-w-[200px]">{payment.rejectionReason}</p>
+                      )}
                     </td>
                     <td className="px-5 py-3 text-xs text-gray-400 font-mono">{payment.transactionId || '-'}</td>
+                    <td className="px-5 py-3">
+                      {payment.status === 'pending_verification' ? (
+                        <div className="flex items-center gap-1">
+                          <button
+                            onClick={() => handleApprove(payment.id)}
+                            disabled={actionLoading === payment.id}
+                            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-success/10 text-success text-xs font-medium hover:bg-success/20 transition-colors disabled:opacity-50"
+                          >
+                            {actionLoading === payment.id ? (
+                              <div className="w-3 h-3 border-2 border-success border-t-transparent rounded-full animate-spin" />
+                            ) : (
+                              <CheckCircle size={12} />
+                            )}
+                            Approve
+                          </button>
+                          <button
+                            onClick={() => setRejectModal({ open: true, paymentId: payment.id, tenantName: payment.tenantName })}
+                            disabled={actionLoading === payment.id}
+                            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-danger/10 text-danger text-xs font-medium hover:bg-danger/20 transition-colors disabled:opacity-50"
+                          >
+                            <X size={12} />
+                            Reject
+                          </button>
+                        </div>
+                      ) : (
+                        <span className="text-xs text-gray-400">&mdash;</span>
+                      )}
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -190,7 +265,51 @@ function PaymentsContent() {
         </div>
       </div>
 
-      <PaymentModal isOpen={showPaymentModal} onClose={() => setShowPaymentModal(false)} />
+      <PaymentModal isOpen={showPaymentModal} onClose={() => setShowPaymentModal(false)} landlordId={user?.id} onSuccess={loadData} />
+
+      {/* Reject Payment Modal */}
+      {rejectModal.open && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md mx-4 overflow-hidden">
+            <div className="flex items-center justify-between p-5 border-b border-gray-100">
+              <div>
+                <h2 className="text-lg font-semibold text-gray-900">Reject Payment</h2>
+                <p className="text-sm text-gray-500 mt-0.5">{rejectModal.tenantName}</p>
+              </div>
+              <button onClick={() => { setRejectModal({ open: false, paymentId: '', tenantName: '' }); setRejectReason(''); }} className="p-2 hover:bg-gray-100 rounded-full transition-colors">
+                <X size={18} className="text-gray-500" />
+              </button>
+            </div>
+            <div className="p-5 space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Reason for rejection <span className="text-red-500">*</span></label>
+                <textarea
+                  value={rejectReason}
+                  onChange={(e) => setRejectReason(e.target.value)}
+                  placeholder="Please provide a reason for rejecting this payment..."
+                  rows={3}
+                  className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 resize-none"
+                />
+              </div>
+            </div>
+            <div className="flex items-center justify-end gap-3 p-5 border-t border-gray-100 bg-gray-50">
+              <Button variant="outline" size="sm" onClick={() => { setRejectModal({ open: false, paymentId: '', tenantName: '' }); setRejectReason(''); }}>Cancel</Button>
+              <button
+                onClick={handleReject}
+                disabled={!rejectReason.trim() || actionLoading === rejectModal.paymentId}
+                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-danger text-white text-sm font-medium hover:bg-danger/90 transition-colors disabled:opacity-50"
+              >
+                {actionLoading === rejectModal.paymentId ? (
+                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                ) : (
+                  <X size={14} />
+                )}
+                Reject Payment
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

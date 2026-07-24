@@ -12,6 +12,15 @@ export function RevenueChart({ data }: RevenueChartProps) {
   const max = Math.max(...data.map((d) => d.amount));
   const total = data.reduce((s, d) => s + d.amount, 0);
 
+  const trend = (() => {
+    if (data.length < 2) return null;
+    const current = data[data.length - 1].amount;
+    const previous = data[data.length - 2].amount;
+    if (previous === 0) return null;
+    const pct = ((current - previous) / previous) * 100;
+    return { value: pct, positive: pct >= 0 };
+  })();
+
   return (
     <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5">
       <div className="flex items-center justify-between mb-5">
@@ -40,9 +49,17 @@ export function RevenueChart({ data }: RevenueChartProps) {
 
       <div className="mt-4 pt-4 border-t border-gray-100">
         <div className="flex items-center gap-2 text-sm">
-          <TrendingUp size={16} className="text-success" />
+          {trend && (
+            <>
+              {trend.positive ? <TrendingUp size={16} className="text-success" /> : <TrendingUp size={16} className="text-red-500 rotate-180" />}
+            </>
+          )}
           <span className="font-medium text-gray-900">Total: {formatCurrency(total)}</span>
-          <span className="text-success text-xs">+12.4% vs last period</span>
+          {trend && (
+            <span className={`text-xs ${trend.positive ? 'text-success' : 'text-red-500'}`}>
+              {trend.positive ? '+' : ''}{trend.value.toFixed(1)}% vs previous
+            </span>
+          )}
         </div>
       </div>
     </div>

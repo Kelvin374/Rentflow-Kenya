@@ -200,7 +200,7 @@ export default function PropertyDetailPage() {
               ) : (
                 <div className="space-y-2">
                   {tenants.map((t: any) => (
-                    <Link key={t.id} href={`/tenants/${t.id}`}
+                    <Link key={`${t.id}-${t.unitId}`} href={`/tenants/${t.id}`}
                       className="flex items-center justify-between p-3 rounded-lg hover:bg-gray-50 transition-colors"
                     >
                       <div className="flex items-center gap-3">

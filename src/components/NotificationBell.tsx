@@ -7,6 +7,9 @@ import { useNotifications, type Notification } from '@/components/Notifications'
 const typeIcons: Record<string, string> = {
   payment_due: 'payments',
   payment_overdue: 'warning',
+  payment_submitted: 'pending',
+  payment_approved: 'check_circle',
+  payment_rejected: 'cancel',
   maintenance_update: 'build',
   lease_expiry: 'description',
 };
@@ -14,6 +17,9 @@ const typeIcons: Record<string, string> = {
 const typeColors: Record<string, string> = {
   payment_due: 'bg-primary/10 text-primary',
   payment_overdue: 'bg-error/10 text-error',
+  payment_submitted: 'bg-blue-50 text-blue-500',
+  payment_approved: 'bg-success/10 text-success',
+  payment_rejected: 'bg-error/10 text-error',
   maintenance_update: 'bg-tertiary/10 text-tertiary',
   lease_expiry: 'bg-secondary/10 text-secondary',
 };

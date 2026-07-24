@@ -89,11 +89,14 @@ export interface Payment {
   tenantName: string;
   amount: number;
   date: string;
-  status: 'paid' | 'pending' | 'overdue';
+  status: 'paid' | 'pending' | 'overdue' | 'pending_verification' | 'approved' | 'rejected';
   method: 'mpesa' | 'bank' | 'cash';
   transactionId?: string;
   receiptId?: string;
   unitNumber: string;
+  rejectionReason?: string;
+  approvedBy?: string;
+  approvedAt?: string;
 }
 
 export interface MaintenanceRequest {

@@ -69,7 +69,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       .from('profiles')
       .select('*')
       .eq('email', email)
-      .single();
+      .maybeSingle();
 
     if (error || !data) return { error: 'Invalid email or password' };
 
@@ -83,7 +83,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       .from('profiles')
       .select('id')
       .eq('email', email)
-      .single();
+      .maybeSingle();
 
     if (existing) return { error: 'An account with this email already exists' };
 
@@ -150,7 +150,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       .from('profiles')
       .select('*')
       .eq('id', profileId)
-      .single();
+      .maybeSingle();
 
     if (error || !data) return { error: 'Profile not found' };
 

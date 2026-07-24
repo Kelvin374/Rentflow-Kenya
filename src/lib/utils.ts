@@ -30,6 +30,9 @@ export function getStatusColor(status: string): string {
     paid: 'bg-success/10 text-success',
     pending: 'bg-warning/10 text-warning',
     overdue: 'bg-danger/10 text-danger',
+    pending_verification: 'bg-blue-100 text-blue-600',
+    approved: 'bg-success/10 text-success',
+    rejected: 'bg-danger/10 text-danger',
     occupied: 'bg-success/10 text-success',
     vacant: 'bg-gray-100 text-gray-500',
     maintenance: 'bg-warning/10 text-warning',
@@ -43,6 +46,7 @@ export function getStatusColor(status: string): string {
     low: 'bg-gray-100 text-gray-500',
     normal: 'bg-primary/10 text-primary',
     urgent: 'bg-danger/10 text-danger',
+    cancelled: 'bg-gray-100 text-gray-500',
   };
   return colors[status] || 'bg-gray-100 text-gray-500';
 }

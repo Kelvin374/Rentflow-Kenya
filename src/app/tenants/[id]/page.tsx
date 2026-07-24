@@ -61,6 +61,9 @@ export default function TenantDetailPage() {
   };
 
   const totalPaid = payments.filter((p) => p.status === 'paid').reduce((s: number, p: any) => s + Number(p.amount), 0);
+  const totalRent = tenant.units && tenant.units.length > 0
+    ? tenant.units.reduce((s: number, u: any) => s + u.monthlyRent, 0)
+    : tenant.rentAmount;
 
   return (
     <div>
@@ -75,7 +78,7 @@ export default function TenantDetailPage() {
             </div>
             <div>
               <h1 className="text-xl font-bold text-gray-900">{tenant.name}</h1>
-              <p className="text-sm text-gray-500">{tenant.unitNumber} &middot; {tenant.propertyName}</p>
+              <p className="text-sm text-gray-500">{tenant.units && tenant.units.length > 1 ? `${tenant.units.length} units` : tenant.unitNumber} &middot; {tenant.units && tenant.units.length > 1 ? `${tenant.units.length} properties` : tenant.propertyName}</p>
             </div>
           </div>
           <div className="flex gap-2">
@@ -98,8 +101,8 @@ export default function TenantDetailPage() {
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           <Card><CardContent className="p-5">
             <p className="text-sm text-gray-500">Rent Amount</p>
-            <p className="text-2xl font-bold text-gray-900">{formatCurrency(tenant.rentAmount)}</p>
-            <p className="text-xs text-gray-400">Per month</p>
+            <p className="text-2xl font-bold text-gray-900">{formatCurrency(totalRent)}</p>
+            <p className="text-xs text-gray-400">{tenant.units && tenant.units.length > 1 ? `Across ${tenant.units.length} units` : 'Per month'}</p>
           </CardContent></Card>
           <Card><CardContent className="p-5">
             <p className="text-sm text-gray-500">Total Paid</p>
@@ -119,6 +122,30 @@ export default function TenantDetailPage() {
           </CardContent></Card>
         </div>
 
+        {tenant.units && tenant.units.length > 1 && (
+          <Card>
+            <CardHeader>
+              <h3 className="font-semibold text-gray-900 flex items-center gap-2"><CreditCard size={16} /> Units ({tenant.units.length})</h3>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                {tenant.units.map((u: any) => (
+                  <div key={u.id} className="p-3 rounded-lg bg-gray-50 border border-gray-100">
+                    <div className="flex items-center justify-between mb-1">
+                      <p className="text-sm font-medium text-gray-900">{u.unitNumber}</p>
+                      <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${u.status === 'occupied' ? 'bg-success/10 text-success' : 'bg-gray-100 text-gray-500'}`}>
+                        {u.status}
+                      </span>
+                    </div>
+                    <p className="text-xs text-gray-400">{u.propertyName}</p>
+                    <p className="text-sm font-semibold text-gray-700 mt-1">{formatCurrency(u.monthlyRent)}/mo</p>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           <Card>
             <CardHeader>
@@ -129,17 +156,20 @@ export default function TenantDetailPage() {
                 <p className="text-sm text-gray-400 text-center py-4">No payments recorded</p>
               ) : (
                 <div className="space-y-2">
-                  {payments.map((p: any) => (
+                  {payments.map((p: any) => {
+                    const unitInfo = tenant.units?.find((u: any) => u.id === p.unit_id);
+                    return (
                     <div key={p.id} className="flex items-center justify-between p-3 rounded-lg bg-gray-50">
                       <div>
                         <p className="text-sm font-medium text-gray-900">{formatCurrency(p.amount)}</p>
-                        <p className="text-xs text-gray-400">{formatDate(p.due_date)} &middot; {(p.method || 'mpesa').toUpperCase()}</p>
+                        <p className="text-xs text-gray-400">{formatDate(p.due_date)} &middot; {(p.method || 'mpesa').toUpperCase()}{unitInfo ? ` &middot; ${unitInfo.unitNumber}` : ''}</p>
                       </div>
                       <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${getStatusColor(p.status)}`}>
                         {p.status.charAt(0).toUpperCase() + p.status.slice(1)}
                       </span>
                     </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
             </CardContent>

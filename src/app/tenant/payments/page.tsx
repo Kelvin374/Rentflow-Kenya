@@ -9,9 +9,9 @@ import { ErrorMessage } from '@/components/ErrorMessage';
 import { NotificationBell } from '@/components/NotificationBell';
 import { Avatar } from '@/components/Avatar';
 import { useSidebar } from '@/components/SidebarContext';
-import { PaymentModal } from '@/components/PaymentModal';
 import { useToast } from '@/components/Toast';
-import { CheckCircle, AlertTriangle, Clock, Banknote } from 'lucide-react';
+import { PaymentModal } from '@/components/PaymentModal';
+import { CheckCircle, AlertTriangle, Clock, Banknote, Plus } from 'lucide-react';
 import type { Payment } from '@/types';
 
 export default function TenantPaymentsPage() {
@@ -24,8 +24,9 @@ export default function TenantPaymentsPage() {
   const [error, setError] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState('all');
   const [search, setSearch] = useState('');
-  const [paymentModal, setPaymentModal] = useState(false);
   const [leaseData, setLeaseData] = useState<any>(null);
+  const [showPaymentModal, setShowPaymentModal] = useState(false);
+  const [tenantUnits, setTenantUnits] = useState<any[]>([]);
 
   const loadData = useCallback(async () => {
     if (!user?.id) return;
@@ -34,10 +35,11 @@ export default function TenantPaymentsPage() {
     try {
       const [pmts, dashboard] = await Promise.all([
         fetchTenantPayments(user.id),
-        fetchTenantDashboardData(user.id, user.name),
+        fetchTenantDashboardData(user.id),
       ]);
       setPayments(pmts);
       if (dashboard.lease) setLeaseData(dashboard.lease);
+      if (dashboard.units) setTenantUnits(dashboard.units);
     } catch (e: any) {
       setError(e?.message || 'Failed to load payments. Please try again.');
     } finally {
@@ -61,9 +63,11 @@ export default function TenantPaymentsPage() {
     return true;
   });
 
-  const paid = payments.filter((p) => p.status === 'paid').reduce((s, p) => s + p.amount, 0);
-  const pending = payments.filter((p) => p.status === 'pending').reduce((s, p) => s + p.amount, 0);
+  const paid = payments.filter((p) => p.status === 'paid' || p.status === 'approved').reduce((s, p) => s + p.amount, 0);
+  const pending = payments.filter((p) => p.status === 'pending' || p.status === 'pending_verification').reduce((s, p) => s + p.amount, 0);
   const overdue = payments.filter((p) => p.status === 'overdue').reduce((s, p) => s + p.amount, 0);
+  const awaitingReview = payments.filter((p) => p.status === 'pending_verification').length;
+  const rejectedCount = payments.filter((p) => p.status === 'rejected').length;
 
   if (isLoading || loading) {
     return (
@@ -94,6 +98,15 @@ export default function TenantPaymentsPage() {
           <h1 className="text-xl font-bold text-on-surface">Payments</h1>
         </div>
         <div className="flex items-center gap-4">
+          {tenantUnits.length > 0 && (
+            <button
+              onClick={() => setShowPaymentModal(true)}
+              className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-primary text-white text-sm font-semibold hover:bg-primary/90 transition-colors"
+            >
+              <Plus size={16} />
+              <span className="hidden sm:inline">Submit Payment</span>
+            </button>
+          )}
           <NotificationBell />
           <div className="w-px h-6 bg-outline-variant mx-2" />
           <div className="flex items-center gap-2 cursor-pointer hover:bg-surface-container-low p-1 rounded-lg transition-colors">
@@ -147,16 +160,23 @@ export default function TenantPaymentsPage() {
           </div>
         </div>
 
-        {/* Pay Now Button */}
-        {leaseData && (
-          <div className="mb-6">
-            <button
-              onClick={() => setPaymentModal(true)}
-              className="px-6 py-3 bg-primary text-white rounded-xl font-semibold text-sm hover:opacity-90 transition-opacity flex items-center gap-2 shadow-sm"
-            >
-              <span className="material-symbols-outlined text-[18px]">payments</span>
-              Pay Now — {formatCurrency(Number(leaseData.rent_amount))}
-            </button>
+        {/* Pending Verification Banner */}
+        {awaitingReview > 0 && (
+          <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 flex items-start gap-3 mb-6">
+            <Clock size={20} className="text-blue-500 flex-shrink-0 mt-0.5" />
+            <div className="flex-1">
+              <p className="text-sm font-medium text-blue-800">{awaitingReview} payment{awaitingReview !== 1 ? 's' : ''} awaiting landlord review</p>
+              <p className="text-xs text-blue-700 mt-1">Your payment{awaitingReview !== 1 ? 's have' : ' has'} been submitted and is waiting for your landlord to verify and approve. Balances will update once approved.</p>
+            </div>
+          </div>
+        )}
+        {rejectedCount > 0 && (
+          <div className="bg-red-50 border border-red-200 rounded-xl p-4 flex items-start gap-3 mb-6">
+            <AlertTriangle size={20} className="text-red-500 flex-shrink-0 mt-0.5" />
+            <div className="flex-1">
+              <p className="text-sm font-medium text-red-800">{rejectedCount} payment{rejectedCount !== 1 ? 's' : ''} rejected</p>
+              <p className="text-xs text-red-700 mt-1">Some payments were rejected by your landlord. Please check the details below and resubmit if needed.</p>
+            </div>
           </div>
         )}
 
@@ -177,7 +197,10 @@ export default function TenantPaymentsPage() {
               className="px-3 py-2 text-sm bg-white border border-gray-200 rounded-xl focus:outline-none focus:ring-1 focus:ring-primary">
               <option value="all">All Statuses</option>
               <option value="paid">Paid</option>
+              <option value="approved">Approved</option>
               <option value="pending">Pending</option>
+              <option value="pending_verification">Awaiting Review</option>
+              <option value="rejected">Rejected</option>
               <option value="overdue">Overdue</option>
             </select>
           </div>
@@ -224,9 +247,12 @@ export default function TenantPaymentsPage() {
                     </td>
                     <td className="px-5 py-3">
                       <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusColor(payment.status)}`}>
-                        {payment.status === 'paid' ? <CheckCircle size={12} /> : null}
-                        {payment.status.charAt(0).toUpperCase() + payment.status.slice(1)}
+                        {payment.status === 'paid' || payment.status === 'approved' ? <CheckCircle size={12} /> : null}
+                        {payment.status === 'pending_verification' ? 'Awaiting Review' : payment.status.charAt(0).toUpperCase() + payment.status.slice(1)}
                       </span>
+                      {payment.status === 'rejected' && payment.rejectionReason && (
+                        <p className="text-[11px] text-red-500 mt-1 max-w-[200px]">{payment.rejectionReason}</p>
+                      )}
                     </td>
                     <td className="px-5 py-3 text-xs text-gray-400 font-mono">{payment.transactionId || '—'}</td>
                   </tr>
@@ -237,12 +263,16 @@ export default function TenantPaymentsPage() {
         </div>
       </main>
 
-      <PaymentModal
-        isOpen={paymentModal}
-        onClose={() => setPaymentModal(false)}
-        amount={leaseData?.rent_amount ? String(leaseData.rent_amount) : '0'}
-        onSuccess={() => { showToast('Payment successful!', 'success'); loadData(); }}
-      />
+      {tenantUnits.length > 0 && (
+        <PaymentModal
+          isOpen={showPaymentModal}
+          onClose={() => setShowPaymentModal(false)}
+          tenantId={user?.id}
+          unitId={tenantUnits[0]?.id}
+          amount={String(tenantUnits[0]?.monthly_rent || 0)}
+          onSuccess={loadData}
+        />
+      )}
     </div>
   );
 }

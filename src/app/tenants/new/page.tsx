@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { ArrowLeft } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { fetchPropertiesSimple, createTenant, fetchUnitsByProperty } from '@/lib/supabase-api';
+import { fetchPropertiesSimple, createTenant, fetchUnitsByProperty, lookupProfileByEmail } from '@/lib/supabase-api';
 import { useAuth } from '@/lib/auth';
 import { useToast } from '@/components/Toast';
 
@@ -24,11 +24,30 @@ function NewTenantForm() {
   });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+  const [existingUser, setExistingUser] = useState<{ id: string; name: string; phone: string; national_id: string } | null>(null);
+  const [emailChecking, setEmailChecking] = useState(false);
   const { showToast } = useToast();
 
   useEffect(() => {
     fetchPropertiesSimple().then(setProperties);
   }, []);
+
+  useEffect(() => {
+    if (!form.email || !form.email.includes('@')) {
+      setExistingUser(null);
+      return;
+    }
+    setEmailChecking(true);
+    const timer = setTimeout(async () => {
+      const found = await lookupProfileByEmail(form.email);
+      setExistingUser(found);
+      if (found) {
+        setForm((prev) => ({ ...prev, name: found.name || prev.name, phone: found.phone || prev.phone, nationalId: found.national_id || prev.nationalId }));
+      }
+      setEmailChecking(false);
+    }, 500);
+    return () => clearTimeout(timer);
+  }, [form.email]);
 
   useEffect(() => {
     if (form.propertyId) {
@@ -47,7 +66,7 @@ function NewTenantForm() {
     setSaving(true);
     setError('');
 
-    const tenantId = crypto.randomUUID();
+    const tenantId = existingUser?.id || crypto.randomUUID();
 
     const selectedUnit = vacantUnits.find((u: any) => u.id === form.unitId);
     const { error } = await createTenant({
@@ -79,6 +98,7 @@ function NewTenantForm() {
         </button>
         <h1 className="text-xl font-bold text-gray-900">Add New Tenant</h1>
       </div>
+      <p className="text-sm text-gray-500 mb-4 -mt-2">Enter an email to check if the user is already registered. Existing users will be linked automatically.</p>
 
       <Card>
         <CardContent className="p-6">
@@ -92,8 +112,20 @@ function NewTenantForm() {
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
-                <input type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })}
-                  className="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50" required />
+                <div className="relative">
+                  <input type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })}
+                    className="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50" required />
+                  {emailChecking && <span className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin" />}
+                  {!emailChecking && existingUser && (
+                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-green-600 font-medium flex items-center gap-1">
+                      <span className="material-symbols-outlined text-[14px]">check_circle</span>
+                      Existing user found
+                    </span>
+                  )}
+                </div>
+                {!emailChecking && existingUser && (
+                  <p className="text-xs text-green-600 mt-1">This user is already registered. They will be added as a tenant using their existing profile.</p>
+                )}
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Phone</label>

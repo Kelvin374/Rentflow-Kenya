@@ -12,32 +12,20 @@ import { Avatar } from '@/components/Avatar';
 import { useSidebar } from '@/components/SidebarContext';
 import type { Property } from '@/types';
 import BookViewingModal from '@/components/BookViewingModal';
-import { PaymentModal } from '@/components/PaymentModal';
 import { useToast } from '@/components/Toast';
-
-const PLACEHOLDER_IMAGES = [
-  'https://images.unsplash.com/photo-1545324418-cc1a3fa10c00?w=400&h=300&fit=crop',
-  'https://images.unsplash.com/photo-1512917774080-9991f1c4c750?w=400&h=300&fit=crop',
-  'https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?w=400&h=300&fit=crop',
-  'https://images.unsplash.com/photo-1600596542815-ffad4c1539a9?w=400&h=300&fit=crop',
-  'https://images.unsplash.com/photo-1577495508326-19a1b3cf65b7?w=400&h=300&fit=crop',
-];
-
-function getPlaceholderImage(index: number) {
-  return PLACEHOLDER_IMAGES[index % PLACEHOLDER_IMAGES.length];
-}
 
 export default function TenantDashboardPage() {
   const { user, isAuthenticated, isLoading, saveLocation } = useAuth();
   const router = useRouter();
   const [propertyData, setPropertyData] = useState<any>(null);
   const [leaseData, setLeaseData] = useState<any>(null);
+  const [unitData, setUnitData] = useState<any[]>([]);
+  const [totalRent, setTotalRent] = useState(0);
   const [nearbyProperties, setNearbyProperties] = useState<Property[]>([]);
   const [locationLoading, setLocationLoading] = useState(false);
   const [pageLoading, setPageLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [bookingModal, setBookingModal] = useState<{ open: boolean; property: any }>({ open: false, property: null });
-  const [paymentModal, setPaymentModal] = useState(false);
   const [favorites, setFavorites] = useState<string[]>([]);
   const { showToast } = useToast();
   const { openMobile } = useSidebar();
@@ -56,9 +44,11 @@ export default function TenantDashboardPage() {
     if (!isAuthenticated) { router.push('/login'); return; }
     if (user?.role !== 'tenant') { router.push('/dashboard'); return; }
 
-    fetchTenantDashboardData(user.id, user.name).then((result) => {
+    fetchTenantDashboardData(user.id).then((result) => {
       if (result.property) setPropertyData(result.property);
       if (result.lease) setLeaseData(result.lease);
+      if (result.units) setUnitData(result.units);
+      if (result.totalRent) setTotalRent(result.totalRent);
       setPageLoading(false);
     }).catch((e) => {
       setLoadError('Failed to load your dashboard. Please try again.');
@@ -106,7 +96,8 @@ export default function TenantDashboardPage() {
     );
   }
 
-  const unit = propertyData ? { monthly_rent: leaseData?.rent_amount || 0 } : null;
+  const unitCount = unitData.length;
+  const primaryUnit = unitData[0] || null;
 
   return (
     <div className="flex-1 flex flex-col min-w-0 relative h-full">
@@ -178,26 +169,23 @@ export default function TenantDashboardPage() {
                 <div className="bg-tertiary-fixed w-10 h-10 rounded-xl flex items-center justify-center">
                   <span className="material-symbols-outlined text-100">meeting_room</span>
                 </div>
-                <span className="text-xs text-on-surface-variant">Unit {leaseData?.unit_number || '—'}</span>
+                <span className="text-xs text-on-surface-variant">{unitCount > 1 ? `${unitCount} Units` : `Unit ${primaryUnit?.unit_number || '—'}`}</span>
               </div>
-              <h3 className="text-[20px] leading-[28px] font-semibold">{leaseData?.rent_amount ? formatCurrency(Number(leaseData.rent_amount)) : '—'}</h3>
+              <h3 className="text-[20px] leading-[28px] font-semibold">{totalRent > 0 ? formatCurrency(totalRent) : '—'}</h3>
               <p className="font-semibold text-sm text-on-surface-variant">Monthly Rent</p>
             </div>
 
             {/* Upcoming Rent */}
-            <button
-              onClick={() => setPaymentModal(true)}
-              className="bg-surface-container-lowest border border-outline-variant p-6 rounded-2xl hover:shadow-md transition-shadow cursor-pointer text-left w-full"
-            >
+            <div className="bg-surface-container-lowest border border-outline-variant p-6 rounded-2xl hover:shadow-md transition-shadow">
               <div className="flex justify-between items-start mb-4">
                 <div className="bg-error-container w-10 h-10 rounded-xl flex items-center justify-center">
                   <span className="material-symbols-outlined text-error">event</span>
                 </div>
-                <span className="text-xs text-error font-bold">{leaseData?.next_due_date ? `Due ${new Date(leaseData.next_due_date).getDate()}` : 'Due'}</span>
+                <span className="text-xs text-error font-bold">{leaseData?.end_date ? `Due ${new Date(leaseData.end_date).getDate()}` : 'Due'}</span>
               </div>
-              <h3 className="text-[20px] leading-[28px] font-semibold">{leaseData?.rent_amount ? formatCurrency(Number(leaseData.rent_amount)) : '—'}</h3>
+              <h3 className="text-[20px] leading-[28px] font-semibold">{totalRent > 0 ? formatCurrency(totalRent) : '—'}</h3>
               <p className="font-semibold text-sm text-on-surface-variant">Next Payment</p>
-            </button>
+            </div>
 
             {/* Lease Status */}
             <div className="bg-surface-container-lowest border border-outline-variant p-6 rounded-2xl hover:shadow-md transition-shadow">
@@ -249,8 +237,13 @@ export default function TenantDashboardPage() {
                 <div className="h-48 relative overflow-hidden">
                   <div
                     className="w-full h-full bg-cover bg-center group-hover:scale-105 transition-transform duration-500"
-                    style={{ backgroundImage: `url('${property.images?.[0] || property.image || getPlaceholderImage(idx)}')` }}
+                    style={property.images?.[0] || property.image ? { backgroundImage: `url('${property.images?.[0] || property.image}')` } : undefined}
                   />
+                  {!(property.images?.[0] || property.image) && (
+                    <div className="w-full h-full bg-surface-container flex items-center justify-center">
+                      <span className="material-symbols-outlined text-outline text-4xl">apartment</span>
+                    </div>
+                  )}
                   {property.distance !== undefined && (
                     <div className="absolute top-4 left-4 bg-white/90 backdrop-blur px-3 py-1 rounded-full flex items-center gap-1 shadow-sm">
                       <span className="material-symbols-outlined text-primary text-sm">location_on</span>
@@ -324,10 +317,6 @@ export default function TenantDashboardPage() {
           <span className="material-symbols-outlined" style={{ fontVariationSettings: "'FILL' 1" }}>dashboard</span>
           <span className="text-[10px] font-bold">Home</span>
         </Link>
-        <button onClick={() => setPaymentModal(true)} className="flex flex-col items-center gap-1 text-on-surface-variant">
-          <span className="material-symbols-outlined">payments</span>
-          <span className="text-[10px]">Pay</span>
-        </button>
       </div>
 
       {/* Book Viewing Modal */}
@@ -335,14 +324,6 @@ export default function TenantDashboardPage() {
         property={bookingModal.property}
         isOpen={bookingModal.open}
         onClose={() => setBookingModal({ open: false, property: null })}
-      />
-
-      {/* Payment Modal */}
-      <PaymentModal
-        isOpen={paymentModal}
-        onClose={() => setPaymentModal(false)}
-        amount={leaseData?.rent_amount ? String(leaseData.rent_amount) : '0'}
-        onSuccess={() => showToast('Payment successful!', 'success')}
       />
     </div>
   );
