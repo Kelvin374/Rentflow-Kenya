@@ -98,6 +98,7 @@ export default function TenantDashboardPage() {
 
   const unitCount = unitData.length;
   const primaryUnit = unitData[0] || null;
+  const totalCredit = unitData.reduce((sum: number, u: any) => sum + Number(u.credit || 0), 0);
 
   return (
     <div className="flex-1 flex flex-col min-w-0 relative h-full">
@@ -198,6 +199,20 @@ export default function TenantDashboardPage() {
               <h3 className="text-[20px] leading-[28px] font-semibold">{leaseData?.end_date || '—'}</h3>
               <p className="font-semibold text-sm text-on-surface-variant">Lease Expiry</p>
             </div>
+
+            {/* Credit Balance (shown if tenant has credit) */}
+            {totalCredit > 0 && (
+              <div className="bg-surface-container-lowest border border-outline-variant p-6 rounded-2xl hover:shadow-md transition-shadow">
+                <div className="flex justify-between items-start mb-4">
+                  <div className="bg-success/10 w-10 h-10 rounded-xl flex items-center justify-center">
+                    <span className="material-symbols-outlined text-success">account_balance_wallet</span>
+                  </div>
+                  <span className="text-xs text-success font-bold">Available</span>
+                </div>
+                <h3 className="text-[20px] leading-[28px] font-semibold text-success">{formatCurrency(totalCredit)}</h3>
+                <p className="font-semibold text-sm text-on-surface-variant">Credit Balance</p>
+              </div>
+            )}
           </div>
         </div>
 

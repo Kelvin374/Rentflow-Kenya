@@ -3,9 +3,10 @@ import { supabase } from '@/lib/supabase/client';
 import { haversineDistance, geocodeLocation, type GeoPoint } from '@/lib/utils';
 
 // ─── Helpers ────────────────────────────────────────────
-const PROP_COLS = 'id, name, location, description, units, type, status, landlord_id, image, images, payment_info, created_at';
-const PROP_COLS_WITH_COORDS = 'id, name, location, description, units, type, status, landlord_id, image, images, payment_info, latitude, longitude, created_at';
-const PROP_COLS_SAFE = 'id, name, location, description, units, type, status, landlord_id, image, payment_info, created_at';
+const PROP_COLS = 'id, name, location, description, units, type, status, landlord_id, image, images, payment_info, contact_phone, contact_email, created_at';
+const PROP_COLS_WITH_COORDS = 'id, name, location, description, units, type, status, landlord_id, image, images, payment_info, latitude, longitude, contact_phone, contact_email, created_at';
+const PROP_COLS_SAFE = 'id, name, location, description, units, type, status, landlord_id, image, payment_info, contact_phone, contact_email, created_at';
+const PROP_COLS_MINIMAL = 'id, name, location, description, units, type, status, landlord_id, image, payment_info, created_at';
 
 let _hasCoords = true;
 
@@ -14,6 +15,10 @@ async function queryProperties(selectCols: string): Promise<{ data: any[] | null
   if (error && selectCols === PROP_COLS_WITH_COORDS) {
     _hasCoords = false;
     const fallback = await supabase.from('properties').select(PROP_COLS);
+    if (fallback.error) {
+      const minimal = await supabase.from('properties').select(PROP_COLS_MINIMAL);
+      return { data: minimal.data, error: minimal.error, hasCoords: false };
+    }
     return { data: fallback.data, error: fallback.error, hasCoords: false };
   }
   return { data, error, hasCoords: _hasCoords };
@@ -66,6 +71,7 @@ export async function fetchProperties(landlordId?: string): Promise<Property[]> 
       image: p.image, images: Array.isArray(p.images) ? p.images : [], landlordId: p.landlord_id,
       latitude: p.latitude ?? undefined, longitude: p.longitude ?? undefined,
       paymentInfo: (typeof p.payment_info === 'string' ? JSON.parse(p.payment_info) : p.payment_info) as PaymentInfo | undefined,
+      contactPhone: p.contact_phone ?? undefined, contactEmail: p.contact_email ?? undefined,
       createdAt: p.created_at,
     };
   });
@@ -86,7 +92,16 @@ export async function fetchPropertyById(id: string): Promise<Property | null> {
       .select(PROP_COLS_SAFE)
       .eq('id', id)
       .single();
-    p = retry.data;
+    if (retry.error || !retry.data) {
+      const minimal = await supabase
+        .from('properties')
+        .select(PROP_COLS_MINIMAL)
+        .eq('id', id)
+        .single();
+      p = minimal.data;
+    } else {
+      p = retry.data;
+    }
   } else {
     p = first.data;
   }
@@ -105,12 +120,20 @@ export async function fetchPropertyById(id: string): Promise<Property | null> {
     .filter((u) => u.status === 'occupied')
     .reduce((s, u) => s + Number(u.monthly_rent), 0);
 
+  let rentDueDay: number | undefined;
+  try {
+    const { data: rdd } = await supabase.from('properties').select('rent_due_day').eq('id', id).single();
+    if (rdd?.rent_due_day) rentDueDay = rdd.rent_due_day;
+  } catch { /* column may not exist yet */ }
+
     return {
       id: p.id, name: p.name, location: p.location, description: p.description, type: p.type, units: totalUnits,
       occupiedUnits, monthlyRevenue, status: p.status,
       image: p.image, images: Array.isArray(p.images) ? p.images : [], landlordId: p.landlord_id,
       latitude: p.latitude ?? undefined, longitude: p.longitude ?? undefined,
       paymentInfo: (typeof p.payment_info === 'string' ? JSON.parse(p.payment_info) : p.payment_info) as PaymentInfo | undefined,
+      contactPhone: p.contact_phone ?? undefined, contactEmail: p.contact_email ?? undefined,
+      rentDueDay,
       createdAt: p.created_at,
     };
 }
@@ -130,10 +153,25 @@ export async function fetchNearbyProperties(
   radiusKm: number = 15,
   limit: number = 10,
 ): Promise<Property[]> {
-  const { data: props, error } = await supabase
+  let props: any[] | null = null;
+  let error: any = null;
+
+  const first = await supabase
     .from('properties')
     .select(PROP_COLS_WITH_COORDS)
     .order('created_at', { ascending: false });
+
+  if (first.error || !first.data) {
+    const fallback = await supabase
+      .from('properties')
+      .select('id, name, location, description, units, type, status, landlord_id, image, images, payment_info, latitude, longitude, created_at')
+      .order('created_at', { ascending: false });
+    props = fallback.data;
+    error = fallback.error;
+  } else {
+    props = first.data;
+    error = first.error;
+  }
 
   if (error || !props) return [];
 
@@ -190,6 +228,7 @@ export async function fetchNearbyProperties(
       latitude: lat, longitude: lng,
       distance: dist,
       paymentInfo: (typeof p.payment_info === 'string' ? JSON.parse(p.payment_info) : p.payment_info) as PaymentInfo | undefined,
+      contactPhone: p.contact_phone ?? undefined, contactEmail: p.contact_email ?? undefined,
       createdAt: p.created_at,
     });
   }
@@ -212,6 +251,8 @@ export async function createProperty(data: {
   name: string; location: string; description: string; units: number; type?: string;
   landlord_id: string; payment_info: PaymentInfo; images?: string[];
   latitude?: number; longitude?: number;
+  contact_phone?: string; contact_email?: string;
+  rent_due_day?: number;
 }): Promise<{ error?: string; id?: string }> {
   if (!data.name.trim()) return { error: 'Property name is required' };
   if (!data.location.trim()) return { error: 'Location is required' };
@@ -237,8 +278,15 @@ export async function createProperty(data: {
   };
   if (data.latitude !== undefined) insertData.latitude = data.latitude;
   if (data.longitude !== undefined) insertData.longitude = data.longitude;
+  if (data.contact_phone) insertData.contact_phone = data.contact_phone;
+  if (data.contact_email) insertData.contact_email = data.contact_email;
+  if (data.rent_due_day) insertData.rent_due_day = data.rent_due_day;
 
-  const { error } = await supabase.from('properties').insert(insertData);
+  let { error } = await supabase.from('properties').insert(insertData);
+  if (error && data.rent_due_day && error.message.includes('rent_due_day')) {
+    delete insertData.rent_due_day;
+    ({ error } = await supabase.from('properties').insert(insertData));
+  }
 
   if (error) return { error: error.message };
 
@@ -267,6 +315,9 @@ export async function updateProperty(id: string, data: {
   payment_info?: PaymentInfo;
   latitude?: number;
   longitude?: number;
+  contact_phone?: string;
+  contact_email?: string;
+  rent_due_day?: number;
 }): Promise<{ error?: string }> {
   const updates: Record<string, any> = {};
   if (data.name !== undefined) updates.name = data.name;
@@ -278,10 +329,19 @@ export async function updateProperty(id: string, data: {
   if (data.payment_info !== undefined) updates.payment_info = data.payment_info;
   if (data.latitude !== undefined) updates.latitude = data.latitude;
   if (data.longitude !== undefined) updates.longitude = data.longitude;
+  if (data.contact_phone !== undefined) updates.contact_phone = data.contact_phone;
+  if (data.contact_email !== undefined) updates.contact_email = data.contact_email;
+  if (data.rent_due_day !== undefined) updates.rent_due_day = data.rent_due_day;
 
   if (Object.keys(updates).length === 0) return {};
 
   let { error } = await supabase.from('properties').update(updates).eq('id', id);
+
+  if (error && updates.rent_due_day !== undefined) {
+    delete updates.rent_due_day;
+    const result = await supabase.from('properties').update(updates).eq('id', id);
+    error = result.error;
+  }
 
   if (error && updates.images !== undefined) {
     delete updates.images;
@@ -1187,8 +1247,18 @@ export async function fetchPropertyDetailData(id: string) {
       .select(PROP_COLS_SAFE)
       .eq('id', id)
       .single();
-    prop = retry.data;
-    error = retry.error;
+    if (retry.error || !retry.data) {
+      const minimal = await supabase
+        .from('properties')
+        .select(PROP_COLS_MINIMAL)
+        .eq('id', id)
+        .single();
+      prop = minimal.data;
+      error = minimal.error;
+    } else {
+      prop = retry.data;
+      error = retry.error;
+    }
   } else {
     prop = first.data;
     error = first.error;
@@ -1229,15 +1299,20 @@ export async function fetchPropertyDetailData(id: string) {
       status: prop.status, landlordId: prop.landlord_id,
       image: prop.image, images: Array.isArray((prop as any).images) ? (prop as any).images : [],
       paymentInfo: (typeof prop.payment_info === 'string' ? JSON.parse(prop.payment_info) : prop.payment_info) as PaymentInfo | undefined,
+      contactPhone: (prop as any).contact_phone ?? undefined, contactEmail: (prop as any).contact_email ?? undefined,
       createdAt: prop.created_at,
     },
     tenants: units.filter((u) => u.tenant_id).map((unit) => {
       const profile = tenantProfiles.find((p) => p.id === unit.tenant_id);
       if (!profile) return null;
       const lastPay = allPayments.find((pay) => pay.tenant_id === unit.tenant_id && pay.unit_id === unit.id);
+      const rawStatus = lastPay?.status || 'pending';
+      const tenantStatus: 'paid' | 'pending' | 'overdue' =
+        rawStatus === 'approved' || rawStatus === 'paid' ? 'paid' :
+        rawStatus === 'overdue' ? 'overdue' : 'pending';
       return {
         id: profile.id, name: profile.name, unitNumber: unit.unit_number || '',
-        status: lastPay?.status || 'pending', rentAmount: unit.monthly_rent || 0,
+        status: tenantStatus, rentAmount: unit.monthly_rent || 0,
         unitId: unit.id,
       };
     }).filter(Boolean),
@@ -1379,6 +1454,68 @@ export async function deactivateTenant(id: string): Promise<{ error?: string }> 
   return {};
 }
 
+// ─── Tenant Unit Details (for multi-unit payment) ──────
+export interface TenantUnitDetail {
+  id: string;
+  unitNumber: string;
+  propertyId: string;
+  propertyName: string;
+  monthlyRent: number;
+  credit: number;
+  alreadyPaid: boolean;
+  rentDueDay: number;
+}
+
+export async function fetchTenantUnitDetails(tenantId: string): Promise<TenantUnitDetail[]> {
+  const { data: units, error: unitsErr } = await supabase
+    .from('units')
+    .select('id, unit_number, monthly_rent, credit, property_id')
+    .eq('tenant_id', tenantId);
+
+  if (unitsErr || !units || units.length === 0) return [];
+
+  const propertyIds = [...new Set(units.map((u) => u.property_id).filter(Boolean))];
+  let propertyMap = new Map<string, { name: string; rentDueDay: number }>();
+  if (propertyIds.length > 0) {
+    let { data: props } = await supabase.from('properties').select('id, name, rent_due_day').in('id', propertyIds);
+    if (!props) {
+      const fallback = await supabase.from('properties').select('id, name').in('id', propertyIds);
+      (fallback.data || []).forEach((p: any) => propertyMap.set(p.id, { name: p.name, rentDueDay: 1 }));
+    } else {
+      (props || []).forEach((p: any) => propertyMap.set(p.id, { name: p.name, rentDueDay: p.rent_due_day || 1 }));
+    }
+  }
+
+  const unitIds = units.map((u) => u.id);
+  const now = new Date();
+  const monthStart = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`;
+  const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().split('T')[0];
+
+  const { data: paidPayments } = await supabase
+    .from('payments')
+    .select('unit_id')
+    .in('unit_id', unitIds)
+    .in('status', ['paid', 'approved', 'pending_verification'])
+    .gte('due_date', monthStart)
+    .lte('due_date', monthEnd);
+
+  const paidUnitIds = new Set((paidPayments || []).map((p) => p.unit_id));
+
+  return units.map((u) => {
+    const propInfo = propertyMap.get(u.property_id);
+    return {
+      id: u.id,
+      unitNumber: u.unit_number,
+      propertyId: u.property_id,
+      propertyName: propInfo?.name || '',
+      monthlyRent: Number(u.monthly_rent || 0),
+      credit: Number(u.credit || 0),
+      alreadyPaid: paidUnitIds.has(u.id),
+      rentDueDay: propInfo?.rentDueDay || 1,
+    };
+  });
+}
+
 // ─── Create Payment ──────────────────────────────────────
 export async function createPayment(data: {
   tenantId: string;
@@ -1462,7 +1599,7 @@ export async function approvePayment(paymentId: string, landlordId: string): Pro
   const { error } = await supabase
     .from('payments')
     .update({
-      status: 'approved',
+      status: 'paid',
       approved_by: landlordId,
       approved_at: new Date().toISOString(),
       paid_date: new Date().toISOString(),

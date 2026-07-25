@@ -24,12 +24,15 @@ export default function EditPropertyPage() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const propertyId = params.id as string;
 
-  const [form, setForm] = useState({ name: '', location: '', description: '', units: '', type: '', rent: '', deposit: '' });
+  const [form, setForm] = useState({ name: '', location: '', description: '', units: '', type: '', rent: '', deposit: '', rentDueDay: '1' });
   const [existingImages, setExistingImages] = useState<string[]>([]);
   const [newImages, setNewImages] = useState<{ file: File; preview: string }[]>([]);
   const [uploadingImages, setUploadingImages] = useState(false);
   const [showPayment, setShowPayment] = useState(false);
+  const [showContact, setShowContact] = useState(false);
   const [payment, setPayment] = useState<PaymentInfo>({ mpesaPaybill: '', mpesaAccount: '', tillNumber: '', bankName: '', bankAccountName: '', bankAccount: '', rentAmount: 0, depositAmount: 0 });
+  const [contactPhone, setContactPhone] = useState('');
+  const [contactEmail, setContactEmail] = useState('');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [dragActive, setDragActive] = useState(false);
@@ -52,9 +55,12 @@ export default function EditPropertyPage() {
         units: String(prop.units), type: prop.type || '',
         rent: prop.paymentInfo?.rentAmount ? String(prop.paymentInfo.rentAmount) : '',
         deposit: prop.paymentInfo?.depositAmount ? String(prop.paymentInfo.depositAmount) : '',
+        rentDueDay: String(prop.rentDueDay || 1),
       });
       setExistingImages(prop.images || []);
       if (prop.paymentInfo) setPayment(prop.paymentInfo);
+      if (prop.contactPhone) setContactPhone(prop.contactPhone);
+      if (prop.contactEmail) setContactEmail(prop.contactEmail);
       if (prop.latitude && prop.longitude) {
         setSelectedCoords({ latitude: prop.latitude, longitude: prop.longitude });
       }
@@ -195,6 +201,9 @@ export default function EditPropertyPage() {
       },
       latitude: geo?.latitude,
       longitude: geo?.longitude,
+      contact_phone: contactPhone,
+      contact_email: contactEmail,
+      rent_due_day: parseInt(form.rentDueDay) || 1,
     });
 
     if (updateError) {
@@ -369,6 +378,37 @@ export default function EditPropertyPage() {
                 placeholder="Property description..." rows={3} />
             </div>
 
+            <div className="border border-gray-200 rounded-xl overflow-hidden">
+              <button type="button" onClick={() => setShowContact(!showContact)}
+                className="w-full flex items-center justify-between p-4 bg-gray-50 hover:bg-gray-100 transition-colors"
+              >
+                <div className="flex items-center gap-2">
+                  <span className="material-symbols-outlined text-primary text-[20px]">contact_phone</span>
+                  <span className="font-medium text-sm text-gray-900">Contact Information</span>
+                </div>
+                {showContact ? <ChevronUp size={18} className="text-gray-400" /> : <ChevronDown size={18} className="text-gray-400" />}
+              </button>
+              {showContact && (
+                <div className="p-4 space-y-4">
+                  <p className="text-xs text-gray-500">How tenants can reach you to schedule viewings or ask questions.</p>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-xs font-medium text-gray-600 mb-1">Phone Number</label>
+                      <input type="tel" value={contactPhone} onChange={(e) => setContactPhone(e.target.value)}
+                        className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
+                        placeholder="e.g. +254 712 345 678" />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-gray-600 mb-1">Email Address</label>
+                      <input type="email" value={contactEmail} onChange={(e) => setContactEmail(e.target.value)}
+                        className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
+                        placeholder="e.g. info@property.com" />
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Rent per Unit (KES/month) <span className="text-red-500">*</span></label>
@@ -382,6 +422,16 @@ export default function EditPropertyPage() {
                   className="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
                   placeholder="e.g. 35000" required min="0" />
               </div>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Rent Due Day of Month</label>
+              <select value={form.rentDueDay} onChange={(e) => setForm({ ...form, rentDueDay: e.target.value })}
+                className="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50">
+                {Array.from({ length: 28 }, (_, i) => i + 1).map((d) => (
+                  <option key={d} value={d}>{d}{d === 1 ? 'st' : d === 2 ? 'nd' : d === 3 ? 'rd' : 'th'} of each month</option>
+                ))}
+              </select>
+              <p className="text-xs text-gray-500 mt-1">Day of the month rent is due (1-28)</p>
             </div>
 
             {user?.role === 'landlord' && (

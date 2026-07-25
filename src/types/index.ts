@@ -52,6 +52,9 @@ export interface Property {
   longitude?: number;
   distance?: number;
   paymentInfo?: PaymentInfo;
+  contactPhone?: string;
+  contactEmail?: string;
+  rentDueDay?: number;
   createdAt: string;
 }
 

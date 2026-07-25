@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { createPayment, fetchTenants } from '@/lib/supabase-api';
+import { createPayment, fetchTenants, fetchTenantUnitDetails, type TenantUnitDetail } from '@/lib/supabase-api';
 import { formatCurrency } from '@/lib/utils';
 import type { Tenant } from '@/types';
 
@@ -31,10 +31,27 @@ export function PaymentModal({ isOpen, onClose, amount = '0', tenantId, unitId, 
   const [pin, setPin] = useState('');
   const [stkTimer, setStkTimer] = useState(0);
 
+  const [unitDetails, setUnitDetails] = useState<TenantUnitDetail[]>([]);
+  const [selectedUnitIds, setSelectedUnitIds] = useState<Set<string>>(new Set());
+  const [unitsLoading, setUnitsLoading] = useState(false);
+
   const isLandlordMode = !tenantId && !unitId && !!landlordId;
   const effectiveTenantId = tenantId || selectedTenantId;
   const effectiveUnitId = unitId || selectedUnitId;
-  const effectiveAmount = isLandlordMode ? amountInput : amountInput;
+  const isTenantMultiUnit = !isLandlordMode && !!tenantId;
+
+  const totalCredit = unitDetails
+    .filter((u) => selectedUnitIds.has(u.id))
+    .reduce((s, u) => s + u.credit, 0);
+
+  const totalRent = unitDetails
+    .filter((u) => selectedUnitIds.has(u.id))
+    .reduce((s, u) => s + u.monthlyRent, 0);
+
+  const totalDue = Math.max(0, totalRent - totalCredit);
+
+  const selectableUnits = unitDetails.filter((u) => !u.alreadyPaid);
+  const paidUnits = unitDetails.filter((u) => u.alreadyPaid);
 
   useEffect(() => {
     if (isOpen && isLandlordMode && landlordId) {
@@ -51,6 +68,22 @@ export function PaymentModal({ isOpen, onClose, amount = '0', tenantId, unitId, 
       }
     }
   }, [selectedTenantId, tenants]);
+
+  useEffect(() => {
+    if (isOpen && isTenantMultiUnit && tenantId) {
+      setUnitsLoading(true);
+      fetchTenantUnitDetails(tenantId)
+        .then((details) => {
+          setUnitDetails(details);
+          const autoSelect = new Set(details.filter((u) => !u.alreadyPaid).map((u) => u.id));
+          setSelectedUnitIds(autoSelect);
+        })
+        .catch(() => {})
+        .finally(() => setUnitsLoading(false));
+    } else if (isOpen && !isTenantMultiUnit && !isLandlordMode && unitId) {
+      setSelectedUnitIds(new Set([unitId]));
+    }
+  }, [isOpen, tenantId, unitId, isTenantMultiUnit, isLandlordMode]);
 
   useEffect(() => {
     if (isOpen) {
@@ -84,11 +117,32 @@ export function PaymentModal({ isOpen, onClose, amount = '0', tenantId, unitId, 
     }
   }, [step]);
 
+  useEffect(() => {
+    if (isTenantMultiUnit && selectedUnitIds.size > 0) {
+      setAmountInput(String(totalDue));
+    }
+  }, [selectedUnitIds, totalDue, isTenantMultiUnit]);
+
   if (!isOpen) return null;
 
+  const displayAmount = isTenantMultiUnit ? totalDue : Number((amountInput || '0').replace(/,/g, ''));
   const canSubmitForm = isLandlordMode
     ? effectiveTenantId && effectiveUnitId && Number((amountInput || '0').replace(/,/g, '')) > 0
-    : phone.length >= 10 && Number((amountInput || '0').replace(/,/g, '')) > 0;
+    : isTenantMultiUnit
+      ? selectedUnitIds.size > 0 && totalDue > 0
+      : phone.length >= 10 && Number((amountInput || '0').replace(/,/g, '')) > 0;
+
+  const toggleUnit = (unitId: string) => {
+    setSelectedUnitIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(unitId)) {
+        next.delete(unitId);
+      } else {
+        next.add(unitId);
+      }
+      return next;
+    });
+  };
 
   const handleFormSubmit = () => {
     if (!canSubmitForm) return;
@@ -107,8 +161,12 @@ export function PaymentModal({ isOpen, onClose, amount = '0', tenantId, unitId, 
   };
 
   const processPayment = async () => {
-    const finalAmount = Number((effectiveAmount || '0').replace(/,/g, ''));
-    if (!effectiveTenantId || !effectiveUnitId || finalAmount <= 0) return;
+    const finalAmount = isTenantMultiUnit
+      ? totalDue
+      : Number((String(displayAmount) || '0').replace(/,/g, ''));
+
+    if (finalAmount <= 0) return;
+    if (!effectiveTenantId && !isLandlordMode) return;
 
     setErrorMsg('');
 
@@ -118,19 +176,45 @@ export function PaymentModal({ isOpen, onClose, amount = '0', tenantId, unitId, 
 
     await new Promise((resolve) => setTimeout(resolve, 2000));
 
-    const result = await createPayment({
-      tenantId: effectiveTenantId,
-      unitId: effectiveUnitId,
-      amount: finalAmount,
-      method,
-      transactionId: txnId,
-    });
+    if (isTenantMultiUnit && selectedUnitIds.size > 0) {
+      let lastError = '';
+      for (const uid of Array.from(selectedUnitIds)) {
+        const unit = unitDetails.find((u) => u.id === uid);
+        if (!unit) continue;
+        const unitAmount = Math.max(0, unit.monthlyRent - unit.credit);
+        if (unitAmount <= 0) continue;
 
-    if (result.error) {
-      setErrorMsg(result.error);
-      setStep('error');
+        const result = await createPayment({
+          tenantId: effectiveTenantId!,
+          unitId: uid,
+          amount: unitAmount,
+          method,
+          transactionId: txnId,
+        });
+        if (result.error) lastError = result.error;
+      }
+      if (lastError) {
+        setErrorMsg(lastError);
+        setStep('error');
+      } else {
+        setStep('success');
+      }
     } else {
-      setStep('success');
+      const targetUnitId = effectiveUnitId;
+      if (!targetUnitId) return;
+      const result = await createPayment({
+        tenantId: effectiveTenantId!,
+        unitId: targetUnitId,
+        amount: finalAmount,
+        method,
+        transactionId: txnId,
+      });
+      if (result.error) {
+        setErrorMsg(result.error);
+        setStep('error');
+      } else {
+        setStep('success');
+      }
     }
   };
 
@@ -138,6 +222,8 @@ export function PaymentModal({ isOpen, onClose, amount = '0', tenantId, unitId, 
     setStep('form');
     setErrorMsg('');
     setPin('');
+    setUnitDetails([]);
+    setSelectedUnitIds(new Set());
     onClose();
   };
 
@@ -167,7 +253,7 @@ export function PaymentModal({ isOpen, onClose, amount = '0', tenantId, unitId, 
         {step === 'form' && (
           <div className="p-6">
             <div className="flex items-center justify-between mb-6">
-              <h3 className="text-lg font-bold text-on-surface">{isLandlordMode ? 'Record Payment' : 'Pay Rent via M-Pesa'}</h3>
+              <h3 className="text-lg font-bold text-on-surface">{isLandlordMode ? 'Record Payment' : 'Pay Rent'}</h3>
               <button onClick={handleClose} className="text-on-surface-variant hover:text-on-surface transition-colors">
                 <span className="material-symbols-outlined">close</span>
               </button>
@@ -191,20 +277,107 @@ export function PaymentModal({ isOpen, onClose, amount = '0', tenantId, unitId, 
               </div>
             )}
 
-            {/* Amount */}
-            <div className="mb-4">
-              <label className="text-[12px] font-bold uppercase tracking-wider text-on-surface-variant mb-2 block">Amount (KES)</label>
-              <div className="relative">
-                <span className="absolute left-4 top-1/2 -translate-y-1/2 text-on-surface-variant font-semibold text-sm">KES</span>
-                <input
-                  type="number"
-                  value={amountInput}
-                  onChange={(e) => setAmountInput(e.target.value)}
-                  placeholder="0"
-                  className="w-full h-12 pl-14 pr-4 rounded-xl border border-outline-variant bg-surface text-on-surface text-lg font-bold focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/15 transition-all"
-                />
+            {/* Multi-Unit Selection (tenant mode) */}
+            {isTenantMultiUnit && (
+              <div className="mb-4">
+                <label className="text-[12px] font-bold uppercase tracking-wider text-on-surface-variant mb-2 block">Select Units to Pay</label>
+                {unitsLoading ? (
+                  <div className="py-6 text-center text-sm text-on-surface-variant">Loading units...</div>
+                ) : unitDetails.length === 0 ? (
+                  <div className="py-6 text-center text-sm text-on-surface-variant">No units found.</div>
+                ) : (
+                  <div className="space-y-2">
+                    {unitDetails.map((u) => {
+                      const isSelected = selectedUnitIds.has(u.id);
+                      const netAmount = Math.max(0, u.monthlyRent - u.credit);
+                      return (
+                        <button
+                          key={u.id}
+                          onClick={() => !u.alreadyPaid && toggleUnit(u.id)}
+                          disabled={u.alreadyPaid}
+                          className={`w-full p-3 rounded-xl border text-left transition-all flex items-start gap-3 ${
+                            u.alreadyPaid
+                              ? 'border-outline-variant/50 bg-surface-container-lowest opacity-50 cursor-not-allowed'
+                              : isSelected
+                                ? 'border-primary bg-primary/5 ring-1 ring-primary/20'
+                                : 'border-outline-variant hover:bg-surface-container-low'
+                          }`}
+                        >
+                          <div className={`mt-0.5 w-5 h-5 rounded-md border-2 flex items-center justify-center flex-shrink-0 transition-all ${
+                            u.alreadyPaid
+                              ? 'border-outline-variant bg-surface-container-lowest'
+                              : isSelected
+                                ? 'border-primary bg-primary'
+                                : 'border-outline-variant'
+                          }`}>
+                            {isSelected && !u.alreadyPaid && (
+                              <svg className="w-3 h-3 text-on-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                              </svg>
+                            )}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center justify-between">
+                              <span className="text-sm font-semibold text-on-surface">
+                                {u.unitNumber}{u.propertyName ? ` · ${u.propertyName}` : ''}
+                              </span>
+                              {u.alreadyPaid ? (
+                                <span className="text-xs font-medium text-success">Paid</span>
+                              ) : (
+                                <span className="text-sm font-bold text-on-surface">{formatCurrency(netAmount)}</span>
+                              )}
+                            </div>
+                            <div className="flex items-center gap-2 mt-0.5">
+                              <span className="text-xs text-on-surface-variant">Rent: {formatCurrency(u.monthlyRent)}</span>
+                              {u.credit > 0 && (
+                                <span className="text-xs text-success font-medium">Credit: -{formatCurrency(u.credit)}</span>
+                              )}
+                            </div>
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
-            </div>
+            )}
+
+            {/* Amount (always read-only in tenant multi-unit mode) */}
+            {!isLandlordMode && isTenantMultiUnit && selectedUnitIds.size > 0 && (
+              <div className="mb-4 bg-surface-container rounded-xl p-4">
+                <div className="flex justify-between text-sm mb-1">
+                  <span className="text-on-surface-variant">Total rent ({selectedUnitIds.size} unit{selectedUnitIds.size !== 1 ? 's' : ''})</span>
+                  <span className="text-on-surface">{formatCurrency(totalRent)}</span>
+                </div>
+                {totalCredit > 0 && (
+                  <div className="flex justify-between text-sm mb-1">
+                    <span className="text-success">Credit applied</span>
+                    <span className="text-success font-medium">-{formatCurrency(totalCredit)}</span>
+                  </div>
+                )}
+                <div className="border-t border-outline-variant mt-2 pt-2 flex justify-between text-sm font-bold">
+                  <span className="text-on-surface">Total due</span>
+                  <span className="text-on-surface">{formatCurrency(totalDue)}</span>
+                </div>
+              </div>
+            )}
+
+            {/* Amount (landlord or single unit tenant) */}
+            {(!isTenantMultiUnit || isLandlordMode) && (
+              <div className="mb-4">
+                <label className="text-[12px] font-bold uppercase tracking-wider text-on-surface-variant mb-2 block">Amount (KES)</label>
+                <div className="relative">
+                  <span className="absolute left-4 top-1/2 -translate-y-1/2 text-on-surface-variant font-semibold text-sm">KES</span>
+                  <input
+                    type="number"
+                    value={amountInput}
+                    onChange={(e) => setAmountInput(e.target.value)}
+                    placeholder="0"
+                    className="w-full h-12 pl-14 pr-4 rounded-xl border border-outline-variant bg-surface text-on-surface text-lg font-bold focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/15 transition-all"
+                  />
+                </div>
+              </div>
+            )}
 
             {/* Payment Method (landlord mode only) */}
             {isLandlordMode && (
@@ -299,7 +472,7 @@ export function PaymentModal({ isOpen, onClose, amount = '0', tenantId, unitId, 
             <div className="bg-surface-container rounded-xl p-4 mb-5">
               <div className="flex items-center justify-between text-sm mb-2">
                 <span className="text-on-surface-variant">Amount</span>
-                <span className="font-bold text-on-surface">{formatCurrency(Number(effectiveAmount || 0))}</span>
+                <span className="font-bold text-on-surface">{formatCurrency(displayAmount)}</span>
               </div>
               <div className="flex items-center justify-between text-sm">
                 <span className="text-on-surface-variant">Paybill</span>
@@ -331,7 +504,7 @@ export function PaymentModal({ isOpen, onClose, amount = '0', tenantId, unitId, 
             </div>
 
             <h4 className="text-lg font-bold text-on-surface mb-1">Enter M-Pesa PIN</h4>
-            <p className="text-sm text-on-surface-variant mb-6">Enter your 4-digit PIN to confirm payment of <strong>{formatCurrency(Number(effectiveAmount || 0))}</strong></p>
+            <p className="text-sm text-on-surface-variant mb-6">Enter your 4-digit PIN to confirm payment of <strong>{formatCurrency(displayAmount)}</strong></p>
 
             {/* PIN Dots */}
             <div className="flex items-center justify-center gap-4 mb-8">
@@ -415,7 +588,7 @@ export function PaymentModal({ isOpen, onClose, amount = '0', tenantId, unitId, 
               {isLandlordMode ? 'Payment Recorded!' : 'Payment Successful!'}
             </h4>
             <p className="text-sm text-on-surface-variant mb-1">
-              KES {formatCurrency(Number(effectiveAmount || 0))} has been {isLandlordMode ? 'recorded' : 'submitted'}.
+              KES {formatCurrency(displayAmount)} has been {isLandlordMode ? 'recorded' : 'submitted'}.
             </p>
             <div className="bg-surface-container rounded-xl p-4 my-4 text-left">
               <div className="flex justify-between text-sm mb-2">

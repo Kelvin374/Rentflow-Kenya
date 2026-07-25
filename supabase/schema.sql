@@ -37,6 +37,8 @@ create table if not exists properties (
   latitude     double precision,
   longitude    double precision,
   payment_info jsonb default '{}',
+  contact_phone text default '',
+  contact_email text default '',
   created_at   timestamptz default now()
 );
 

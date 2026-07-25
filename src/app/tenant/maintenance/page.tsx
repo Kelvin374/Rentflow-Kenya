@@ -126,6 +126,13 @@ export default function TenantMaintenancePage() {
             </button>
           </div>
           <h1 className="text-xl font-bold text-on-surface">Maintenance</h1>
+          <Link
+            href="/tenant/maintenance/new"
+            className="ml-auto flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-xl text-sm font-medium hover:bg-primary/90 transition-colors"
+          >
+            <span className="material-symbols-outlined text-[18px]">add</span>
+            New Request
+          </Link>
         </div>
         <div className="flex items-center gap-4">
           <NotificationBell />
@@ -217,7 +224,14 @@ export default function TenantMaintenancePage() {
           <div className="bg-surface-container-lowest border border-outline-variant rounded-2xl p-12 text-center">
             <span className="material-symbols-outlined text-outline text-5xl mb-4 block">build</span>
             <h3 className="text-lg font-semibold text-on-surface mb-2">No maintenance requests</h3>
-            <p className="text-sm text-on-surface-variant">You haven't submitted any maintenance requests yet.</p>
+            <p className="text-sm text-on-surface-variant mb-4">You haven't submitted any maintenance requests yet.</p>
+            <Link
+              href="/tenant/maintenance/new"
+              className="inline-flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-xl text-sm font-medium hover:bg-primary/90 transition-colors"
+            >
+              <span className="material-symbols-outlined text-[18px]">add</span>
+              Submit a Request
+            </Link>
           </div>
         ) : (
           <div className="space-y-4">

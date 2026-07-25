@@ -11,8 +11,10 @@ import { Avatar } from '@/components/Avatar';
 import { useSidebar } from '@/components/SidebarContext';
 import { useToast } from '@/components/Toast';
 import { PaymentModal } from '@/components/PaymentModal';
-import { CheckCircle, AlertTriangle, Clock, Banknote, Plus } from 'lucide-react';
+import { CheckCircle, AlertTriangle, Clock, Banknote, Plus, Wallet } from 'lucide-react';
 import type { Payment } from '@/types';
+import type { TenantUnitDetail } from '@/lib/supabase-api';
+import { fetchTenantUnitDetails } from '@/lib/supabase-api';
 
 export default function TenantPaymentsPage() {
   const { user, isAuthenticated, isLoading } = useAuth();
@@ -27,19 +29,22 @@ export default function TenantPaymentsPage() {
   const [leaseData, setLeaseData] = useState<any>(null);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [tenantUnits, setTenantUnits] = useState<any[]>([]);
+  const [unitDetails, setUnitDetails] = useState<TenantUnitDetail[]>([]);
 
   const loadData = useCallback(async () => {
     if (!user?.id) return;
     setLoading(true);
     setError(null);
     try {
-      const [pmts, dashboard] = await Promise.all([
+      const [pmts, dashboard, unitDets] = await Promise.all([
         fetchTenantPayments(user.id),
         fetchTenantDashboardData(user.id),
+        fetchTenantUnitDetails(user.id),
       ]);
       setPayments(pmts);
       if (dashboard.lease) setLeaseData(dashboard.lease);
       if (dashboard.units) setTenantUnits(dashboard.units);
+      setUnitDetails(unitDets);
     } catch (e: any) {
       setError(e?.message || 'Failed to load payments. Please try again.');
     } finally {
@@ -54,7 +59,30 @@ export default function TenantPaymentsPage() {
     loadData();
   }, [user, isAuthenticated, isLoading, router, loadData]);
 
-  const filteredPayments = payments.filter((p) => {
+  const allPayments: Payment[] = (() => {
+    const now = new Date();
+    const synthetic: Payment[] = unitDetails
+      .filter((u) => !u.alreadyPaid)
+      .map((u) => {
+        const dueDay = Math.min(u.rentDueDay || 1, 28);
+        const dueDate = new Date(now.getFullYear(), now.getMonth(), dueDay);
+        const isOverdue = now > dueDate;
+        return {
+          id: `pending-${u.id}`,
+          tenantId: user?.id || '',
+          tenantName: user?.name || '',
+          amount: Math.max(0, u.monthlyRent - u.credit),
+          date: dueDate.toISOString().split('T')[0],
+          status: (isOverdue ? 'overdue' : 'pending') as 'pending' | 'overdue',
+          method: 'mpesa' as const,
+          unitNumber: u.unitNumber,
+        };
+      });
+
+    return [...payments, ...synthetic];
+  })();
+
+  const filteredPayments = allPayments.filter((p) => {
     if (statusFilter !== 'all' && p.status !== statusFilter) return false;
     if (search) {
       const q = search.toLowerCase();
@@ -63,11 +91,12 @@ export default function TenantPaymentsPage() {
     return true;
   });
 
-  const paid = payments.filter((p) => p.status === 'paid' || p.status === 'approved').reduce((s, p) => s + p.amount, 0);
-  const pending = payments.filter((p) => p.status === 'pending' || p.status === 'pending_verification').reduce((s, p) => s + p.amount, 0);
-  const overdue = payments.filter((p) => p.status === 'overdue').reduce((s, p) => s + p.amount, 0);
-  const awaitingReview = payments.filter((p) => p.status === 'pending_verification').length;
-  const rejectedCount = payments.filter((p) => p.status === 'rejected').length;
+  const paid = allPayments.filter((p) => p.status === 'paid' || p.status === 'approved').reduce((s, p) => s + p.amount, 0);
+  const pending = allPayments.filter((p) => p.status === 'pending' || p.status === 'pending_verification').reduce((s, p) => s + p.amount, 0);
+  const overdue = allPayments.filter((p) => p.status === 'overdue').reduce((s, p) => s + p.amount, 0);
+  const awaitingReview = allPayments.filter((p) => p.status === 'pending_verification').length;
+  const rejectedCount = allPayments.filter((p) => p.status === 'rejected').length;
+  const totalCredit = unitDetails.reduce((s, u) => s + u.credit, 0);
 
   if (isLoading || loading) {
     return (
@@ -121,7 +150,7 @@ export default function TenantPaymentsPage() {
 
       <main className="flex-1 overflow-y-auto p-6 scrollbar-hide">
         {/* Summary Cards */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 mb-8">
           <div className="bg-surface-container-lowest border border-outline-variant p-5 rounded-2xl hover:shadow-md transition-shadow">
             <div className="flex items-center gap-3 mb-3">
               <div className="w-10 h-10 rounded-xl bg-success/10 flex items-center justify-center">
@@ -158,6 +187,17 @@ export default function TenantPaymentsPage() {
             </div>
             <p className="text-[24px] leading-[32px] font-bold text-on-surface">{payments.length}</p>
           </div>
+          {totalCredit > 0 && (
+            <div className="bg-surface-container-lowest border border-outline-variant p-5 rounded-2xl hover:shadow-md transition-shadow">
+              <div className="flex items-center gap-3 mb-3">
+                <div className="w-10 h-10 rounded-xl bg-success/10 flex items-center justify-center">
+                  <Wallet size={20} className="text-success" />
+                </div>
+                <span className="text-xs text-on-surface-variant font-medium">Credit Balance</span>
+              </div>
+              <p className="text-[24px] leading-[32px] font-bold text-success">{formatCurrency(totalCredit)}</p>
+            </div>
+          )}
         </div>
 
         {/* Pending Verification Banner */}
@@ -242,7 +282,7 @@ export default function TenantPaymentsPage() {
                     <td className="px-5 py-3 text-sm text-gray-500">{formatDate(payment.date)}</td>
                     <td className="px-5 py-3">
                       <span className="text-xs font-medium px-2 py-1 rounded-full bg-gray-100 text-gray-600 uppercase">
-                        {payment.method}
+                        {payment.id.startsWith('pending-') ? '—' : payment.method}
                       </span>
                     </td>
                     <td className="px-5 py-3">
@@ -268,8 +308,6 @@ export default function TenantPaymentsPage() {
           isOpen={showPaymentModal}
           onClose={() => setShowPaymentModal(false)}
           tenantId={user?.id}
-          unitId={tenantUnits[0]?.id}
-          amount={String(tenantUnits[0]?.monthly_rent || 0)}
           onSuccess={loadData}
         />
       )}

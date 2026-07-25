@@ -60,8 +60,8 @@ export default function PropertyDetailPage() {
     router.push('/properties');
   };
 
-  const collected = payments.filter((p) => p.status === 'paid').reduce((s: number, p: any) => s + Number(p.amount), 0);
-  const outstanding = payments.filter((p) => p.status !== 'paid').reduce((s: number, p: any) => s + Number(p.amount), 0);
+  const collected = payments.filter((p) => p.status === 'paid' || p.status === 'approved').reduce((s: number, p: any) => s + Number(p.amount), 0);
+  const outstanding = payments.filter((p) => p.status !== 'paid' && p.status !== 'approved').reduce((s: number, p: any) => s + Number(p.amount), 0);
 
   return (
     <div>
@@ -216,7 +216,7 @@ export default function PropertyDetailPage() {
                         t.status === 'paid' ? 'bg-success/10 text-success' :
                         t.status === 'overdue' ? 'bg-danger/10 text-danger' : 'bg-warning/10 text-warning'
                       }`}>
-                        {t.status.charAt(0).toUpperCase() + t.status.slice(1)}
+                        {(t.status === 'paid' ? 'Paid' : t.status === 'overdue' ? 'Overdue' : 'Pending')}
                       </span>
                     </Link>
                   ))}
@@ -243,9 +243,9 @@ export default function PropertyDetailPage() {
                       <div className="text-right">
                         <p className="text-sm font-semibold text-gray-900">{formatCurrency(p.amount)}</p>
                         <span className={`text-xs font-medium ${
-                          p.status === 'paid' ? 'text-success' : p.status === 'overdue' ? 'text-danger' : 'text-warning'
+                          p.status === 'paid' || p.status === 'approved' ? 'text-success' : p.status === 'overdue' ? 'text-danger' : 'text-warning'
                         }`}>
-                          {p.status.charAt(0).toUpperCase() + p.status.slice(1)}
+                          {p.status === 'paid' || p.status === 'approved' ? 'Paid' : p.status === 'overdue' ? 'Overdue' : 'Pending'}
                         </span>
                       </div>
                     </div>

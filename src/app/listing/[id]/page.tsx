@@ -217,6 +217,44 @@ export default function PropertyListingPage() {
               </section>
             )}
 
+            {/* Contact for Viewing */}
+            {(property.contactPhone || property.contactEmail) && (
+              <section className="bg-surface-container-lowest p-6 rounded-2xl border border-outline-variant">
+                <h3 className="text-[20px] leading-[28px] font-bold mb-4">Contact for Viewing</h3>
+                <p className="text-sm text-on-surface-variant mb-4">Reach out to schedule a visit or ask questions about this property.</p>
+                <div className="space-y-3">
+                  {property.contactPhone && (
+                    <a
+                      href={`tel:${property.contactPhone}`}
+                      className="flex items-center gap-3 p-4 bg-surface-container-low rounded-xl hover:bg-surface-container-high transition-colors"
+                    >
+                      <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center">
+                        <span className="material-symbols-outlined text-primary">call</span>
+                      </div>
+                      <div>
+                        <p className="text-xs text-on-surface-variant">Phone</p>
+                        <p className="font-semibold text-sm">{property.contactPhone}</p>
+                      </div>
+                    </a>
+                  )}
+                  {property.contactEmail && (
+                    <a
+                      href={`mailto:${property.contactEmail}`}
+                      className="flex items-center gap-3 p-4 bg-surface-container-low rounded-xl hover:bg-surface-container-high transition-colors"
+                    >
+                      <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center">
+                        <span className="material-symbols-outlined text-primary">mail</span>
+                      </div>
+                      <div>
+                        <p className="text-xs text-on-surface-variant">Email</p>
+                        <p className="font-semibold text-sm">{property.contactEmail}</p>
+                      </div>
+                    </a>
+                  )}
+                </div>
+              </section>
+            )}
+
             {/* Map placeholder */}
             <section className="bg-surface-container-lowest p-6 rounded-2xl border border-outline-variant">
               <h3 className="text-[20px] leading-[28px] font-bold mb-4">Location</h3>
@@ -288,12 +326,20 @@ export default function PropertyListingPage() {
               </div>
 
               <button
-                onClick={() => showToast('Booking request sent!', 'success')}
+                onClick={() => {
+                  if (property.contactPhone) {
+                    window.location.href = `tel:${property.contactPhone}`;
+                  } else {
+                    showToast('No contact information available for this property. Please try again later.', 'info');
+                  }
+                }}
                 className="w-full bg-primary text-on-primary font-bold py-3.5 rounded-xl hover:opacity-90 active:scale-[0.98] transition-all"
               >
-                Book This Unit
+                {property.contactPhone ? 'Call to Schedule Viewing' : 'Book This Unit'}
               </button>
-              <p className="text-center text-xs text-on-surface-variant mt-3">No payment required to book</p>
+              <p className="text-center text-xs text-on-surface-variant mt-3">
+                {property.contactPhone ? 'No payment required to book' : 'Contact the property manager to schedule'}
+              </p>
             </div>
           </div>
         </div>

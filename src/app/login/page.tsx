@@ -11,7 +11,6 @@ export default function LoginPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
-  const [role, setRole] = useState<'admin' | 'landlord' | 'tenant'>('landlord');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
@@ -125,31 +124,6 @@ export default function LoginPage() {
 
           <form onSubmit={handleLogin} className="flex flex-col gap-6">
             {error && <p className="text-sm text-error bg-error-container/30 p-3 rounded-xl">{error}</p>}
-
-            {/* Demo Account Selector */}
-            <div className="flex bg-surface-container rounded-lg p-1">
-              <button
-                type="button"
-                onClick={() => setRole('admin')}
-                className={`flex-1 py-2 text-sm font-medium rounded-md transition-all ${role === 'admin' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500'}`}
-              >
-                Admin
-              </button>
-              <button
-                type="button"
-                onClick={() => setRole('landlord')}
-                className={`flex-1 py-2 text-sm font-medium rounded-md transition-all ${role === 'landlord' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500'}`}
-              >
-                Landlord
-              </button>
-              <button
-                type="button"
-                onClick={() => setRole('tenant')}
-                className={`flex-1 py-2 text-sm font-medium rounded-md transition-all ${role === 'tenant' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500'}`}
-              >
-                Tenant
-              </button>
-            </div>
 
             <div className="flex flex-col gap-2">
               <label className="text-[14px] leading-[20px] font-semibold text-on-surface" htmlFor="email">Email Address</label>

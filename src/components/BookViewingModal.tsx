@@ -1,7 +1,5 @@
 'use client';
 
-import { useState } from 'react';
-
 interface Property {
   id: number;
   name: string;
@@ -11,6 +9,8 @@ interface Property {
   beds: string;
   image: string;
   images?: string[];
+  contactPhone?: string;
+  contactEmail?: string;
 }
 
 interface BookViewingModalProps {
@@ -21,6 +21,8 @@ interface BookViewingModalProps {
 
 export default function BookViewingModal({ property, isOpen, onClose }: BookViewingModalProps) {
   if (!isOpen || !property) return null;
+
+  const hasContact = !!(property.contactPhone || property.contactEmail);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={onClose}>
@@ -47,14 +49,52 @@ export default function BookViewingModal({ property, isOpen, onClose }: BookView
           </div>
         </div>
 
-        <div className="p-6 text-center">
-          <div className="w-16 h-16 mx-auto rounded-full bg-primary/10 flex items-center justify-center mb-4">
-            <span className="material-symbols-outlined text-primary text-3xl">construction</span>
+        <div className="p-6">
+          <div className="text-center mb-5">
+            <div className="w-16 h-16 mx-auto rounded-full bg-primary/10 flex items-center justify-center mb-4">
+              <span className="material-symbols-outlined text-primary text-3xl">visibility</span>
+            </div>
+            <h4 className="text-xl font-bold text-on-surface mb-2">Schedule a Viewing</h4>
+            <p className="text-sm text-on-surface-variant">
+              {hasContact
+                ? 'Contact the property manager below to arrange a visit.'
+                : 'No contact information available for this property yet. Please check back later.'}
+            </p>
           </div>
-          <h4 className="text-xl font-bold text-on-surface mb-2">Coming Soon</h4>
-          <p className="text-sm text-on-surface-variant mb-6">
-            Online viewing bookings are not yet available. Please contact the property manager directly to schedule a viewing.
-          </p>
+
+          {hasContact && (
+            <div className="space-y-3 mb-6">
+              {property.contactPhone && (
+                <a
+                  href={`tel:${property.contactPhone}`}
+                  className="flex items-center gap-3 p-4 bg-surface-container-low rounded-xl hover:bg-surface-container-high transition-colors"
+                >
+                  <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
+                    <span className="material-symbols-outlined text-primary">call</span>
+                  </div>
+                  <div>
+                    <p className="text-xs text-on-surface-variant">Phone</p>
+                    <p className="font-semibold text-sm">{property.contactPhone}</p>
+                  </div>
+                </a>
+              )}
+              {property.contactEmail && (
+                <a
+                  href={`mailto:${property.contactEmail}`}
+                  className="flex items-center gap-3 p-4 bg-surface-container-low rounded-xl hover:bg-surface-container-high transition-colors"
+                >
+                  <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
+                    <span className="material-symbols-outlined text-primary">mail</span>
+                  </div>
+                  <div>
+                    <p className="text-xs text-on-surface-variant">Email</p>
+                    <p className="font-semibold text-sm">{property.contactEmail}</p>
+                  </div>
+                </a>
+              )}
+            </div>
+          )}
+
           <button
             onClick={onClose}
             className="w-full py-3 rounded-xl bg-primary text-on-primary font-semibold text-sm hover:opacity-95 transition-all"
