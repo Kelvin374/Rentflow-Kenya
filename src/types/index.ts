@@ -153,3 +153,17 @@ export interface RevenueData {
   month: string;
   amount: number;
 }
+
+export interface ViewingAppointment {
+  id: string;
+  propertyId: string;
+  propertyName: string;
+  tenantId?: string;
+  name: string;
+  email: string;
+  phone: string;
+  preferredDate?: string;
+  notes: string;
+  status: 'pending' | 'confirmed' | 'cancelled';
+  createdAt: string;
+}

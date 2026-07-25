@@ -6,6 +6,7 @@ import { ToastProvider } from '@/components/Toast';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { SidebarProvider } from '@/components/SidebarContext';
 import { NotificationProvider } from '@/components/Notifications';
+import { DashboardShell } from '@/components/DashboardShell';
 
 export function Providers({ children }: { children: ReactNode }) {
   return (
@@ -13,7 +14,9 @@ export function Providers({ children }: { children: ReactNode }) {
       <AuthProvider>
         <SidebarProvider>
           <NotificationProvider>
-            <ToastProvider>{children}</ToastProvider>
+            <ToastProvider>
+              <DashboardShell>{children}</DashboardShell>
+            </ToastProvider>
           </NotificationProvider>
         </SidebarProvider>
       </AuthProvider>

@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth';
-import { fetchTenantDashboardData, fetchNearbyProperties } from '@/lib/supabase-api';
+import { fetchTenantDashboardData, fetchNearbyProperties, fetchSavedPropertyIds, fetchSavedProperties, saveProperty, unsaveProperty } from '@/lib/supabase-api';
 import { formatCurrency, formatDistance } from '@/lib/utils';
 import { ErrorMessage } from '@/components/ErrorMessage';
 import { NotificationBell } from '@/components/NotificationBell';
@@ -27,6 +27,7 @@ export default function TenantDashboardPage() {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [bookingModal, setBookingModal] = useState<{ open: boolean; property: any }>({ open: false, property: null });
   const [favorites, setFavorites] = useState<string[]>([]);
+  const [savedProperties, setSavedProperties] = useState<Property[]>([]);
   const { showToast } = useToast();
   const { openMobile } = useSidebar();
 
@@ -54,6 +55,9 @@ export default function TenantDashboardPage() {
       setLoadError('Failed to load your dashboard. Please try again.');
       setPageLoading(false);
     });
+
+    fetchSavedPropertyIds(user.id).then((ids) => setFavorites(ids)).catch(() => {});
+    fetchSavedProperties(user.id).then((props) => setSavedProperties(props)).catch(() => {});
 
     if (user.latitude && user.longitude) {
       loadNearby(user.latitude, user.longitude);
@@ -266,16 +270,20 @@ export default function TenantDashboardPage() {
                     </div>
                   )}
                   <button
-                    onClick={() => {
-                      setFavorites((prev) =>
-                        prev.includes(property.id)
-                          ? prev.filter((id) => id !== property.id)
-                          : [...prev, property.id]
-                      );
-                      showToast(
-                        favorites.includes(property.id) ? 'Removed from saved' : 'Saved to favorites!',
-                        'success'
-                      );
+                    onClick={async () => {
+                      if (!user) return;
+                      const isFav = favorites.includes(property.id);
+                      if (isFav) {
+                        await unsaveProperty(user.id, String(property.id));
+                        setFavorites((prev) => prev.filter((id) => id !== property.id));
+                        setSavedProperties((prev) => prev.filter((p) => p.id !== property.id));
+                        showToast('Removed from saved', 'success');
+                      } else {
+                        await saveProperty(user.id, String(property.id));
+                        setFavorites((prev) => [...prev, property.id]);
+                        setSavedProperties((prev) => [property, ...prev]);
+                        showToast('Saved to favorites!', 'success');
+                      }
                     }}
                     className="absolute top-4 right-4 bg-white/20 hover:bg-white/40 backdrop-blur w-8 h-8 rounded-full flex items-center justify-center text-white transition-colors"
                   >

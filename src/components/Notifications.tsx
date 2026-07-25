@@ -2,11 +2,11 @@
 
 import { useState, useEffect, useCallback, createContext, useContext, type ReactNode } from 'react';
 import { useAuth } from '@/lib/auth';
-import { fetchLandlordPayments, fetchTenantPayments, fetchMaintenance, fetchLandlordMaintenance } from '@/lib/supabase-api';
+import { fetchLandlordPayments, fetchTenantPayments, fetchMaintenance, fetchLandlordMaintenance, fetchLandlordViewingAppointments } from '@/lib/supabase-api';
 
 export interface Notification {
   id: string;
-  type: 'payment_due' | 'payment_overdue' | 'maintenance_update' | 'lease_expiry' | 'payment_submitted' | 'payment_approved' | 'payment_rejected';
+  type: 'payment_due' | 'payment_overdue' | 'maintenance_update' | 'lease_expiry' | 'payment_submitted' | 'payment_approved' | 'payment_rejected' | 'viewing_appointment';
   title: string;
   message: string;
   timestamp: string;
@@ -43,9 +43,10 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
 
     try {
       if (user.role === 'landlord') {
-        const [payments, maintenance] = await Promise.all([
+        const [payments, maintenance, viewingAppointments] = await Promise.all([
           fetchLandlordPayments(user.id),
           fetchLandlordMaintenance(user.id),
+          fetchLandlordViewingAppointments(user.id).catch(() => []),
         ]);
 
         const pendingReview = payments.filter((p) => p.status === 'pending_verification');
@@ -85,6 +86,17 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
             timestamp: m.createdAt,
             read: false,
             href: '/maintenance',
+          });
+        });
+
+        viewingAppointments.filter((a) => a.status === 'pending').slice(0, 5).forEach((a) => {
+          newNotifications.push({
+            id: `viewing-${a.id}`,
+            type: 'viewing_appointment',
+            title: 'New Viewing Request',
+            message: `${a.name} wants to view ${a.propertyName}${a.preferredDate ? ` on ${new Date(a.preferredDate).toLocaleDateString()}` : ''}`,
+            timestamp: a.createdAt,
+            read: false,
           });
         });
       } else if (user.role === 'tenant') {

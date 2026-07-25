@@ -3,7 +3,6 @@
 import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth';
-import { AdminSidebar } from '@/components/AdminSidebar';
 
 export default function AdminDashboardLayout({ children }: { children: React.ReactNode }) {
   const { user, isAuthenticated, isLoading } = useAuth();
@@ -33,12 +32,5 @@ export default function AdminDashboardLayout({ children }: { children: React.Rea
     return null;
   }
 
-  return (
-    <div className="min-h-screen bg-background flex">
-      <AdminSidebar />
-      <main className="flex-1 flex flex-col overflow-hidden relative">
-        {children}
-      </main>
-    </div>
-  );
+  return <>{children}</>;
 }

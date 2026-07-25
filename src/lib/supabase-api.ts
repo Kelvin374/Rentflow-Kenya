@@ -1,4 +1,4 @@
-import type { Property, Tenant, Payment, MaintenanceRequest, DashboardStats, RevenueData, PaymentInfo } from '@/types';
+import type { Property, Tenant, Payment, MaintenanceRequest, DashboardStats, RevenueData, PaymentInfo, ViewingAppointment } from '@/types';
 import { supabase } from '@/lib/supabase/client';
 import { haversineDistance, geocodeLocation, type GeoPoint } from '@/lib/utils';
 
@@ -1729,4 +1729,156 @@ export async function deleteTenant(id: string): Promise<{ error?: string }> {
   await supabase.from('profiles').delete().eq('id', id);
 
   return {};
+}
+
+// ─── Viewing Appointments ─────────────────────────────
+
+export async function bookViewingAppointment(params: {
+  propertyId: string;
+  tenantId?: string;
+  name: string;
+  email: string;
+  phone?: string;
+  preferredDate?: string;
+  notes?: string;
+}): Promise<{ data?: ViewingAppointment; error?: string }> {
+  const { data, error } = await supabase
+    .from('viewing_appointments')
+    .insert({
+      property_id: params.propertyId,
+      tenant_id: params.tenantId || null,
+      name: params.name,
+      email: params.email,
+      phone: params.phone || '',
+      preferred_date: params.preferredDate || null,
+      notes: params.notes || '',
+      status: 'pending',
+    })
+    .select()
+    .single();
+
+  if (error) return { error: error.message };
+
+  return {
+    data: {
+      id: data.id,
+      propertyId: data.property_id,
+      propertyName: '',
+      tenantId: data.tenant_id ?? undefined,
+      name: data.name,
+      email: data.email,
+      phone: data.phone,
+      preferredDate: data.preferred_date ?? undefined,
+      notes: data.notes,
+      status: data.status,
+      createdAt: data.created_at,
+    },
+  };
+}
+
+export async function fetchLandlordViewingAppointments(landlordId: string): Promise<ViewingAppointment[]> {
+  const { data: props } = await supabase
+    .from('properties')
+    .select('id, name')
+    .eq('landlord_id', landlordId);
+
+  if (!props || props.length === 0) return [];
+
+  const propMap = new Map(props.map((p: any) => [p.id, p.name]));
+  const propIds = props.map((p: any) => p.id);
+
+  const { data } = await supabase
+    .from('viewing_appointments')
+    .select('*')
+    .in('property_id', propIds)
+    .order('created_at', { ascending: false });
+
+  if (!data) return [];
+
+  return data.map((a: any) => ({
+    id: a.id,
+    propertyId: a.property_id,
+    propertyName: propMap.get(a.property_id) || '',
+    tenantId: a.tenant_id ?? undefined,
+    name: a.name,
+    email: a.email,
+    phone: a.phone,
+    preferredDate: a.preferred_date ?? undefined,
+    notes: a.notes,
+    status: a.status,
+    createdAt: a.created_at,
+  }));
+}
+
+// ─── Saved Properties ─────────────────────────────────
+
+export async function saveProperty(userId: string, propertyId: string): Promise<{ error?: string }> {
+  const { error } = await supabase
+    .from('saved_properties')
+    .upsert({ user_id: userId, property_id: propertyId }, { onConflict: 'user_id,property_id' });
+  return error ? { error: error.message } : {};
+}
+
+export async function unsaveProperty(userId: string, propertyId: string): Promise<{ error?: string }> {
+  const { error } = await supabase
+    .from('saved_properties')
+    .delete()
+    .eq('user_id', userId)
+    .eq('property_id', propertyId);
+  return error ? { error: error.message } : {};
+}
+
+export async function fetchSavedPropertyIds(userId: string): Promise<string[]> {
+  const { data } = await supabase
+    .from('saved_properties')
+    .select('property_id')
+    .eq('user_id', userId);
+
+  return data ? data.map((r: any) => r.property_id) : [];
+}
+
+export async function fetchSavedProperties(userId: string): Promise<Property[]> {
+  const { data: saved } = await supabase
+    .from('saved_properties')
+    .select('property_id')
+    .eq('user_id', userId);
+
+  if (!saved || saved.length === 0) return [];
+
+  const propIds = saved.map((r: any) => r.property_id);
+  const { data: props } = await supabase
+    .from('properties')
+    .select(PROP_COLS)
+    .in('id', propIds);
+
+  if (!props) return [];
+
+  const { data: allUnits } = await supabase
+    .from('units')
+    .select('*')
+    .in('property_id', propIds);
+
+  const unitsByProperty = new Map<string, any[]>();
+  for (const u of allUnits || []) {
+    const list = unitsByProperty.get(u.property_id) || [];
+    list.push(u);
+    unitsByProperty.set(u.property_id, list);
+  }
+
+  return props.map((p: any) => {
+    const propertyUnits = unitsByProperty.get(p.id) || [];
+    const totalUnits = propertyUnits.length || p.units;
+    const occupiedUnits = propertyUnits.filter((u: any) => u.status === 'occupied').length;
+    const monthlyRevenue = propertyUnits
+      .filter((u: any) => u.status === 'occupied')
+      .reduce((s: number, u: any) => s + Number(u.monthly_rent), 0);
+    return {
+      id: p.id, name: p.name, location: p.location, description: p.description, type: p.type, units: totalUnits,
+      occupiedUnits, monthlyRevenue, status: p.status,
+      image: p.image, images: Array.isArray(p.images) ? p.images : [], landlordId: p.landlord_id,
+      paymentInfo: (typeof p.payment_info === 'string' ? JSON.parse(p.payment_info) : p.payment_info) as PaymentInfo | undefined,
+      contactPhone: p.contact_phone ?? undefined, contactEmail: p.contact_email ?? undefined,
+      createdAt: p.created_at,
+    };
+  });
 }

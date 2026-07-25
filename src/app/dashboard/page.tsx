@@ -8,8 +8,8 @@ import { Header } from '@/components/Header';
 import { ErrorMessage } from '@/components/ErrorMessage';
 import { useRealtimeSubscription } from '@/hooks/useRealtimeSubscription';
 import { formatCurrency } from '@/lib/utils';
-import { fetchLandlordStats, fetchLandlordProperties, fetchLandlordMaintenance } from '@/lib/supabase-api';
-import type { DashboardStats, Property, MaintenanceRequest } from '@/types';
+import { fetchLandlordStats, fetchLandlordProperties, fetchLandlordMaintenance, fetchLandlordViewingAppointments } from '@/lib/supabase-api';
+import type { DashboardStats, Property, MaintenanceRequest, ViewingAppointment } from '@/types';
 
 const categoryIcons: Record<string, string> = {
   plumbing: 'plumbing', electrical: 'bolt', security: 'lock', painting: 'format_paint',
@@ -22,6 +22,7 @@ export default function DashboardPage() {
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [properties, setProperties] = useState<Property[]>([]);
   const [maintenance, setMaintenance] = useState<MaintenanceRequest[]>([]);
+  const [viewingAppointments, setViewingAppointments] = useState<ViewingAppointment[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; property: Property } | null>(null);
@@ -35,8 +36,9 @@ export default function DashboardPage() {
       fetchLandlordStats(landlordId),
       fetchLandlordProperties(landlordId),
       fetchLandlordMaintenance(landlordId),
+      fetchLandlordViewingAppointments(landlordId).catch(() => []),
     ])
-      .then(([s, p, m]) => { setStats(s); setProperties(p); setMaintenance(m); })
+      .then(([s, p, m, v]) => { setStats(s); setProperties(p); setMaintenance(m); setViewingAppointments(v); })
       .catch((e) => setError(e?.message || 'Failed to load dashboard data. Please try again.'))
       .finally(() => setLoading(false));
   }, [user, authLoading]);
@@ -59,6 +61,13 @@ export default function DashboardPage() {
   useRealtimeSubscription(
     'dashboard-maintenance',
     [{ event: '*', table: 'maintenance_requests' }],
+    () => loadData(),
+    !!user && user.role === 'landlord'
+  );
+
+  useRealtimeSubscription(
+    'dashboard-viewing',
+    [{ event: '*', table: 'viewing_appointments' }],
     () => loadData(),
     !!user && user.role === 'landlord'
   );
@@ -336,6 +345,41 @@ export default function DashboardPage() {
                     <p className="text-[14px] leading-[20px] text-on-surface-variant">
                       {req.propertyName} {req.unitNumber ? `• ${req.unitNumber}` : ''} &bull; {req.status.replace('_', ' ')}
                     </p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
+
+        {/* Pending Viewing Requests */}
+        {!isEmpty && viewingAppointments.filter((a) => a.status === 'pending').length > 0 && (
+          <section className="bg-surface-container-lowest p-6 rounded-xl shadow-sm border border-outline-variant">
+            <div className="flex justify-between items-center mb-6">
+              <h4 className="font-semibold text-sm text-on-surface">Viewing Requests</h4>
+              <span className="text-xs font-medium text-on-primary bg-primary px-2 py-1 rounded-full">
+                {viewingAppointments.filter((a) => a.status === 'pending').length} pending
+              </span>
+            </div>
+            <div className="space-y-4">
+              {viewingAppointments.filter((a) => a.status === 'pending').slice(0, 5).map((apt) => (
+                <div key={apt.id} className="flex gap-4 p-4 rounded-xl hover:bg-surface-container-low border border-transparent hover:border-outline-variant transition-all">
+                  <div className="h-10 w-10 rounded-full bg-tertiary/10 text-tertiary flex items-center justify-center flex-shrink-0">
+                    <span className="material-symbols-outlined">visibility</span>
+                  </div>
+                  <div className="flex-grow">
+                    <div className="flex justify-between">
+                      <p className="font-semibold text-sm text-on-surface">{apt.name}</p>
+                      <span className="text-xs font-bold text-tertiary">{apt.status}</span>
+                    </div>
+                    <p className="text-[14px] leading-[20px] text-on-surface-variant">
+                      {apt.propertyName}{apt.preferredDate ? ` • ${new Date(apt.preferredDate).toLocaleDateString()}` : ''}
+                    </p>
+                    {apt.phone && (
+                      <a href={`tel:${apt.phone}`} className="text-xs text-primary font-medium hover:underline">
+                        {apt.phone}
+                      </a>
+                    )}
                   </div>
                 </div>
               ))}
