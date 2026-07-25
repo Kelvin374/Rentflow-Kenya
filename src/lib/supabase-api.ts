@@ -1432,7 +1432,7 @@ export async function approvePayment(paymentId: string, landlordId: string): Pro
   const sortedUnits = [...units].sort((a, b) => Number(a.monthly_rent) - Number(b.monthly_rent));
 
   let remaining = paymentAmount;
-  const unitUpdates: Promise<any>[] = [];
+  const unitUpdates: PromiseLike<any>[] = [];
 
   for (const unit of sortedUnits) {
     const rent = Number(unit.monthly_rent);
@@ -1441,18 +1441,18 @@ export async function approvePayment(paymentId: string, landlordId: string): Pro
     if (remaining >= rent) {
       remaining -= rent;
       unitUpdates.push(
-        supabase.from('units').update({ credit: 0 }).eq('id', unit.id).then()
+        supabase.from('units').update({ credit: 0 }).eq('id', unit.id)
       );
     } else if (remaining + existingCredit >= rent) {
       remaining = 0;
       unitUpdates.push(
-        supabase.from('units').update({ credit: 0 }).eq('id', unit.id).then()
+        supabase.from('units').update({ credit: 0 }).eq('id', unit.id)
       );
     } else if (remaining > 0) {
       const newCredit = existingCredit + remaining;
       remaining = 0;
       unitUpdates.push(
-        supabase.from('units').update({ credit: newCredit }).eq('id', unit.id).then()
+        supabase.from('units').update({ credit: newCredit }).eq('id', unit.id)
       );
     }
   }
